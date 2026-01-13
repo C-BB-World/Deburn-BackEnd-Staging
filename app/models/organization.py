@@ -59,7 +59,7 @@ class Organization(BaseDocument):
         name = "organizations"
         indexes = [
             "name",
-            "domain",
+            # Note: "domain" has existing sparse index in DB, don't recreate
             "status",
         ]
 
