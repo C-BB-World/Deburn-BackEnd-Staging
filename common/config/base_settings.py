@@ -35,7 +35,7 @@ class BaseAppSettings(BaseSettings):
     # Database Settings
     # ==========================================================================
     MONGODB_URI: str = "mongodb://localhost:27017"
-    MONGODB_DATABASE: str = "app"
+    MONGODB_DATABASE: str = "deburn"
 
     # ==========================================================================
     # Authentication Settings
