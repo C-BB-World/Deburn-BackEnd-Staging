@@ -27,8 +27,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Callable, Awaitable
 
+import bcrypt as bcrypt_lib
 from jose import jwt, JWTError
-from passlib.hash import bcrypt
 
 from common.auth.base import AuthProvider
 
@@ -110,7 +110,8 @@ class JWTAuth(AuthProvider):
     def hash_password(self, password: str) -> str:
         """Hash a password using bcrypt with SHA-256 pre-hashing."""
         prehashed = self._prehash_password(password)
-        return bcrypt.hash(prehashed)
+        salt = bcrypt_lib.gensalt()
+        return bcrypt_lib.hashpw(prehashed.encode("utf-8"), salt).decode("utf-8")
 
     def verify_password(self, password: str, hashed: str) -> bool:
         """
@@ -119,14 +120,19 @@ class JWTAuth(AuthProvider):
         Supports both new (SHA-256 pre-hashed) and legacy (direct bcrypt) hashes
         for backwards compatibility.
         """
+        hashed_bytes = hashed.encode("utf-8")
+
         # Try new method first (SHA-256 pre-hash)
         prehashed = self._prehash_password(password)
-        if bcrypt.verify(prehashed, hashed):
-            return True
+        try:
+            if bcrypt_lib.checkpw(prehashed.encode("utf-8"), hashed_bytes):
+                return True
+        except ValueError:
+            pass
 
         # Fallback to legacy method (direct bcrypt) for old hashes
         try:
-            return bcrypt.verify(password, hashed)
+            return bcrypt_lib.checkpw(password.encode("utf-8"), hashed_bytes)
         except ValueError:
             # Password too long for direct bcrypt - definitely not a match
             return False
