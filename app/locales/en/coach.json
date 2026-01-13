@@ -1,0 +1,35 @@
+{
+  "title": "Ask Eve",
+  "subtitle": "Your AI Wellness Coach",
+  "placeholder": "Type your message...",
+  "send": "Send",
+  "starters": {
+    "title": "Start a conversation",
+    "wellness": "How can I manage stress better?",
+    "goals": "I need help setting goals",
+    "leadership": "How can I improve my leadership style?",
+    "work": "I'm feeling overwhelmed at work"
+  },
+  "actions": {
+    "setGoal": "Set a Goal",
+    "startCheckIn": "Do Check-in",
+    "openLearning": "Explore Resources"
+  },
+  "quickReplies": {
+    "helpful": "That's helpful, thank you!",
+    "tellMore": "Can you tell me more?",
+    "notNow": "Not right now, thanks",
+    "explore": "Yes, I'd like to explore that",
+    "explain": "Can you explain more?",
+    "consider": "What else should I consider?"
+  },
+  "limit": {
+    "title": "Daily Limit Reached",
+    "message": "You've reached your daily coaching limit. Come back tomorrow for more conversations.",
+    "remaining": "{{count}} exchanges remaining today"
+  },
+  "errors": {
+    "failed": "Failed to get response",
+    "connectionLost": "Connection lost, trying to reconnect..."
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "title": "Daglig incheckning",
+  "subtitle": "Hur mår du idag?",
+  "metrics": {
+    "mood": {
+      "label": "Humör",
+      "levels": {
+        "1": "Kämpar",
+        "2": "Lågt",
+        "3": "Neutral",
+        "4": "Bra",
+        "5": "Utmärkt"
+      }
+    },
+    "physicalEnergy": {
+      "label": "Fysisk energi",
+      "description": "Hur känns kroppen?"
+    },
+    "mentalEnergy": {
+      "label": "Mental energi",
+      "description": "Hur fokuserad och klar är du?"
+    },
+    "sleep": {
+      "label": "Sömnkvalitet",
+      "levels": {
+        "1": "Dålig",
+        "2": "Okej",
+        "3": "Medel",
+        "4": "Bra",
+        "5": "Utmärkt"
+      }
+    },
+    "stress": {
+      "label": "Stressnivå",
+      "low": "Låg",
+      "high": "Hög"
+    }
+  },
+  "notes": {
+    "label": "Anteckningar",
+    "placeholder": "Något mer du vill notera? (valfritt)"
+  },
+  "submit": "Slutför incheckning",
+  "success": "Incheckning klar!",
+  "streak": {
+    "title": "Nuvarande streak",
+    "days": {
+      "one": "{{count}} dag",
+      "other": "{{count}} dagar"
+    },
+    "encouragement": "Fortsätt så!"
+  },
+  "trends": {
+    "title": "Dina trender",
+    "period": "Senaste {{days}} dagarna",
+    "improving": "Förbättras",
+    "stable": "Stabilt",
+    "declining": "Behöver uppmärksamhet"
+  }
+}

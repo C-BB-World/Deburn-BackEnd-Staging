@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "BrainBank",
+    "tagline": "AI-driven personlig utveckling"
+  },
+  "greeting": "Hej, {{name}}!",
+  "welcome": "Välkommen till BrainBank",
+  "loading": "Laddar...",
+  "error": "Ett fel uppstod",
+  "success": "Klart!",
+  "save": "Spara",
+  "cancel": "Avbryt",
+  "delete": "Ta bort",
+  "edit": "Redigera",
+  "back": "Tillbaka",
+  "next": "Nästa",
+  "submit": "Skicka",
+  "close": "Stäng",
+  "confirm": "Bekräfta",
+  "yes": "Ja",
+  "no": "Nej"
+}

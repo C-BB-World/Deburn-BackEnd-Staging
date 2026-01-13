@@ -1,0 +1,22 @@
+{
+  "app": {
+    "name": "BrainBank",
+    "tagline": "AI-Powered Personal Development"
+  },
+  "greeting": "Hello, {{name}}!",
+  "welcome": "Welcome to BrainBank",
+  "loading": "Loading...",
+  "error": "An error occurred",
+  "success": "Success!",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "edit": "Edit",
+  "back": "Back",
+  "next": "Next",
+  "submit": "Submit",
+  "close": "Close",
+  "confirm": "Confirm",
+  "yes": "Yes",
+  "no": "No"
+}

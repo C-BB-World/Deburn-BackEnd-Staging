@@ -1,0 +1,60 @@
+{
+  "title": "Daily Check-in",
+  "subtitle": "How are you feeling today?",
+  "metrics": {
+    "mood": {
+      "label": "Mood",
+      "levels": {
+        "1": "Struggling",
+        "2": "Low",
+        "3": "Neutral",
+        "4": "Good",
+        "5": "Great"
+      }
+    },
+    "physicalEnergy": {
+      "label": "Physical Energy",
+      "description": "How's your body feeling?"
+    },
+    "mentalEnergy": {
+      "label": "Mental Energy",
+      "description": "How focused and clear is your mind?"
+    },
+    "sleep": {
+      "label": "Sleep Quality",
+      "levels": {
+        "1": "Poor",
+        "2": "Fair",
+        "3": "OK",
+        "4": "Good",
+        "5": "Great"
+      }
+    },
+    "stress": {
+      "label": "Stress Level",
+      "low": "Low",
+      "high": "High"
+    }
+  },
+  "notes": {
+    "label": "Notes",
+    "placeholder": "Anything else you'd like to note? (optional)"
+  },
+  "submit": "Complete Check-in",
+  "success": "Check-in completed!",
+  "streak": {
+    "title": "Current Streak",
+    "days": {
+      "one": "{{count}} day",
+      "other": "{{count}} days"
+    },
+    "encouragement": "Keep it up!"
+  },
+  "trends": {
+    "title": "Your Trends",
+    "period": "Last {{days}} days",
+    "improving": "Improving",
+    "stable": "Stable",
+    "declining": "Needs attention"
+  }
+}

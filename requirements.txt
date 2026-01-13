@@ -1,0 +1,82 @@
+# BrainBank Backend - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# =============================================================================
+# STEP 2: Mock API (already installed)
+# =============================================================================
+
+# FastAPI framework
+fastapi>=0.109.0
+
+# ASGI server
+uvicorn[standard]>=0.27.0
+
+# File upload support
+python-multipart>=0.0.6
+
+# =============================================================================
+# STEP 3: Common Library
+# =============================================================================
+
+# Database - Beanie ODM (includes motor)
+beanie>=1.25.0
+motor>=3.3.0
+
+# Configuration - Pydantic Settings
+pydantic-settings>=2.1.0
+
+# Authentication - JWT
+python-jose[cryptography]>=3.3.0
+
+# Authentication - Password hashing
+passlib[bcrypt]>=1.7.4
+
+# Authentication - Firebase Admin SDK (optional)
+firebase-admin>=6.4.0
+
+# AI - Anthropic Claude
+anthropic>=0.18.0
+
+# AI - OpenAI (optional)
+openai>=1.12.0
+
+# =============================================================================
+# STEP 4: Full API (additional dependencies)
+# =============================================================================
+
+# Async HTTP client (for external API calls)
+httpx>=0.26.0
+
+# Async file operations
+aiofiles>=23.2.0
+
+# Email - SMTP
+aiosmtplib>=3.0.0
+
+# =============================================================================
+# Optional: Additional Features
+# =============================================================================
+
+# Text-to-speech (ElevenLabs)
+# elevenlabs>=0.2.0
+
+# Google Calendar integration
+# google-auth>=2.27.0
+# google-api-python-client>=2.116.0
+
+# Token counting for OpenAI
+# tiktoken>=0.5.0
+
+# =============================================================================
+# Development & Testing
+# =============================================================================
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+
+# Type checking
+mypy>=1.8.0
+
+# Linting
+ruff>=0.2.0

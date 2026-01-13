@@ -1,0 +1,35 @@
+{
+  "title": "Fråga Eve",
+  "subtitle": "Din AI-coach för välmående",
+  "placeholder": "Skriv ditt meddelande...",
+  "send": "Skicka",
+  "starters": {
+    "title": "Starta en konversation",
+    "wellness": "Hur kan jag hantera stress bättre?",
+    "goals": "Jag behöver hjälp med att sätta mål",
+    "leadership": "Hur kan jag förbättra min ledarskapsstil?",
+    "work": "Jag känner mig överväldigad på jobbet"
+  },
+  "actions": {
+    "setGoal": "Sätt ett mål",
+    "startCheckIn": "Gör incheckning",
+    "openLearning": "Utforska resurser"
+  },
+  "quickReplies": {
+    "helpful": "Det var hjälpsamt, tack!",
+    "tellMore": "Kan du berätta mer?",
+    "notNow": "Inte just nu, tack",
+    "explore": "Ja, jag vill utforska det",
+    "explain": "Kan du förklara mer?",
+    "consider": "Vad mer bör jag tänka på?"
+  },
+  "limit": {
+    "title": "Daglig gräns nådd",
+    "message": "Du har nått din dagliga coachgräns. Kom tillbaka imorgon för fler samtal.",
+    "remaining": "{{count}} samtal kvar idag"
+  },
+  "errors": {
+    "failed": "Kunde inte hämta svar",
+    "connectionLost": "Anslutningen bröts, försöker återansluta..."
+  }
+}
