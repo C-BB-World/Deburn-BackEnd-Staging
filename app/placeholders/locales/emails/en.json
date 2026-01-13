@@ -1,0 +1,44 @@
+{
+  "verification": {
+    "subject": "Verify your Eve account",
+    "greeting": "Hi {{name}},",
+    "greetingDefault": "Hi there,",
+    "welcome": "Welcome to Eve! Please verify your email address to complete your registration and start your leadership development journey.",
+    "cta": "Verify Email Address",
+    "expiryNotice": "This link will expire in 24 hours. If you didn't create an Eve account, you can safely ignore this email.",
+    "linkFallback": "If the button doesn't work, copy and paste this link into your browser:"
+  },
+  "passwordReset": {
+    "subject": "Reset your Eve password",
+    "greeting": "Hi {{name}},",
+    "greetingDefault": "Hi there,",
+    "message": "We received a request to reset your password. Click the button below to choose a new password.",
+    "cta": "Reset Password",
+    "expiryWarning": "This link will expire in 1 hour. If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.",
+    "securityInfo": "Security Information",
+    "requestFrom": "This request was made from:",
+    "ipAddress": "IP Address: {{ip}}",
+    "time": "Time: {{timestamp}}"
+  },
+  "welcome": {
+    "subject": "Welcome to Eve!",
+    "greeting": "Hi {{name}},",
+    "message": "Your email is verified and your account is ready to go! We're excited to have you join us on your leadership development journey.",
+    "cta": "Get Started",
+    "featuresTitle": "Here's what you can do:",
+    "features": [
+      "Complete your daily check-in to track your well-being",
+      "Ask Eve for leadership guidance",
+      "Explore micro-learning modules",
+      "Connect with your leadership circle"
+    ],
+    "support": "We're here to support your growth as a leader. If you have any questions, feel free to reach out!"
+  },
+  "common": {
+    "footerCompany": "Deburn AB | Stockholm, Sweden",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "unsubscribe": "Unsubscribe",
+    "contactSupport": "Contact Support"
+  }
+}

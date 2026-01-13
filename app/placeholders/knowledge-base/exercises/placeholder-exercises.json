@@ -1,0 +1,149 @@
+{
+  "exercises": [
+    {
+      "id": "calming-meditation-3min",
+      "title": "3-Minute Calming Meditation",
+      "type": "breathing",
+      "duration": 180,
+      "description": "A quick breathing exercise to regain calm and clarity before important moments.",
+      "trigger": {
+        "stressLevel": ">=7",
+        "context": ["after_meeting", "high_stress_detected"]
+      },
+      "steps": [
+        "Find a comfortable position. You can keep your eyes open with a soft gaze, or close them gently.",
+        "Begin by taking three deep breaths. Inhale slowly through your nose for 4 counts... hold for 2... exhale through your mouth for 6 counts.",
+        "Now let your breathing return to normal. Simply notice each breath without trying to change it.",
+        "Bring your attention to your body. Notice any areas of tension. With each exhale, imagine releasing that tension.",
+        "Take one final deep breath. As you exhale, open your eyes if they were closed. Notice how you feel."
+      ],
+      "closing": "You've just given yourself a gift of presence. Carry this calm into your next interaction."
+    },
+    {
+      "id": "box-breathing",
+      "title": "Box Breathing Exercise",
+      "type": "breathing",
+      "duration": 240,
+      "description": "A simple 4-4-4-4 breathing technique used by Navy SEALs to reduce stress.",
+      "steps": [
+        "Sit upright in a comfortable position.",
+        "Exhale completely through your mouth.",
+        "Inhale through your nose for 4 counts.",
+        "Hold your breath for 4 counts.",
+        "Exhale through your mouth for 4 counts.",
+        "Hold for 4 counts before inhaling again.",
+        "Repeat for 4 cycles."
+      ],
+      "closing": "With practice, box breathing becomes a powerful tool you can use anywhere."
+    },
+    {
+      "id": "active-listening-practice",
+      "title": "Active Listening Practice",
+      "type": "communication",
+      "duration": 300,
+      "description": "Practice the HEAR method to become a more present and effective listener.",
+      "framework": {
+        "name": "HEAR Method",
+        "steps": [
+          {"letter": "H", "action": "Halt", "description": "Stop what you're doing. Give full attention."},
+          {"letter": "E", "action": "Engage", "description": "Make eye contact. Lean in slightly. Show you're present."},
+          {"letter": "A", "action": "Anticipate", "description": "Expect to learn something. Approach with curiosity."},
+          {"letter": "R", "action": "Replay", "description": "Paraphrase what you heard to confirm understanding."}
+        ]
+      },
+      "practice_prompt": "Think of an upcoming conversation where listening will be important. Who will you be speaking with? What assumptions might you need to set aside?"
+    },
+    {
+      "id": "delegation-assessment",
+      "title": "Delegation Self-Assessment",
+      "type": "reflection",
+      "duration": 300,
+      "description": "Assess your delegation patterns and identify opportunities to empower your team.",
+      "questions": [
+        "What tasks are currently on your plate that someone else could do?",
+        "What's holding you back from delegating these tasks?",
+        "Who on your team would benefit from growth opportunities?",
+        "What support would they need to succeed?",
+        "What's one task you could delegate this week?"
+      ],
+      "framework": {
+        "name": "SMART Delegation",
+        "criteria": ["Specific outcome", "Measurable success criteria", "Authority granted", "Resources provided", "Timeline agreed"]
+      }
+    },
+    {
+      "id": "difficult-conversation-prep",
+      "title": "Difficult Conversation Preparation",
+      "type": "communication",
+      "duration": 420,
+      "description": "Prepare for a challenging discussion with confidence using a structured approach.",
+      "framework": {
+        "name": "STATE Method",
+        "steps": [
+          {"letter": "S", "action": "Share facts", "description": "Start with observable, objective facts."},
+          {"letter": "T", "action": "Tell your story", "description": "Share your interpretation tentatively."},
+          {"letter": "A", "action": "Ask for their path", "description": "Invite the other person's perspective."},
+          {"letter": "T", "action": "Talk tentatively", "description": "Avoid absolutes and blame."},
+          {"letter": "E", "action": "Encourage testing", "description": "Make it safe for them to share."}
+        ]
+      },
+      "practice_prompt": "Think of a conversation you've been avoiding. Using the STATE method, how would you open that discussion?"
+    }
+  ],
+  "modules": [
+    {
+      "id": "delegation-frameworks",
+      "title": "Delegation Without Guilt",
+      "duration": "5 min",
+      "format": "video",
+      "description": "Learn the SMART delegation framework to empower your team while maintaining quality.",
+      "topics": ["delegation", "empowerment", "time_management"],
+      "placeholder": true
+    },
+    {
+      "id": "active-listening",
+      "title": "The Art of Active Listening",
+      "duration": "4 min",
+      "format": "interactive",
+      "description": "Practice the HEAR method to become a more present and effective listener.",
+      "topics": ["communication", "feedback", "trust"],
+      "placeholder": true
+    },
+    {
+      "id": "stress-reset",
+      "title": "2-Minute Stress Reset",
+      "duration": "2 min",
+      "format": "audio",
+      "description": "A quick breathing exercise to regain calm before important moments.",
+      "topics": ["stress_management", "mindfulness", "resilience"],
+      "placeholder": true
+    },
+    {
+      "id": "feedback-culture",
+      "title": "Building a Feedback Culture",
+      "duration": "6 min",
+      "format": "video",
+      "description": "Create an environment where feedback flows freely and constructively.",
+      "topics": ["feedback", "team_culture", "psychological_safety"],
+      "placeholder": true
+    },
+    {
+      "id": "energy-management",
+      "title": "Managing Your Energy, Not Just Time",
+      "duration": "5 min",
+      "format": "interactive",
+      "description": "Discover your energy patterns and align your work accordingly.",
+      "topics": ["energy", "productivity", "well_being"],
+      "placeholder": true
+    },
+    {
+      "id": "difficult-conversations",
+      "title": "Navigating Difficult Conversations",
+      "duration": "7 min",
+      "format": "video",
+      "description": "A framework for approaching challenging discussions with confidence.",
+      "topics": ["communication", "conflict", "feedback"],
+      "placeholder": true
+    }
+  ]
+}

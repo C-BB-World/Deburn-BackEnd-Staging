@@ -1,0 +1,44 @@
+{
+  "verification": {
+    "subject": "Verifiera ditt Eve-konto",
+    "greeting": "Hej {{name}},",
+    "greetingDefault": "Hej,",
+    "welcome": "Välkommen till Eve! Vänligen verifiera din e-postadress för att slutföra din registrering och påbörja din ledarskapsresa.",
+    "cta": "Verifiera e-postadress",
+    "expiryNotice": "Denna länk upphör att gälla om 24 timmar. Om du inte skapade ett Eve-konto kan du ignorera detta e-postmeddelande.",
+    "linkFallback": "Om knappen inte fungerar, kopiera och klistra in denna länk i din webbläsare:"
+  },
+  "passwordReset": {
+    "subject": "Återställ ditt Eve-lösenord",
+    "greeting": "Hej {{name}},",
+    "greetingDefault": "Hej,",
+    "message": "Vi har fått en begäran om att återställa ditt lösenord. Klicka på knappen nedan för att välja ett nytt lösenord.",
+    "cta": "Återställ lösenord",
+    "expiryWarning": "Denna länk upphör att gälla om 1 timme. Om du inte begärde denna lösenordsåterställning kan du ignorera detta e-postmeddelande. Ditt lösenord förblir oförändrat.",
+    "securityInfo": "Säkerhetsinformation",
+    "requestFrom": "Denna begäran gjordes från:",
+    "ipAddress": "IP-adress: {{ip}}",
+    "time": "Tid: {{timestamp}}"
+  },
+  "welcome": {
+    "subject": "Välkommen till Eve!",
+    "greeting": "Hej {{name}},",
+    "message": "Din e-post är verifierad och ditt konto är redo att användas! Vi är glada att ha dig med oss på din ledarskapsresa.",
+    "cta": "Kom igång",
+    "featuresTitle": "Här är vad du kan göra:",
+    "features": [
+      "Genomför din dagliga incheckning för att följa ditt välbefinnande",
+      "Fråga Eve om ledarskapsvägledning",
+      "Utforska mikrolärande-moduler",
+      "Anslut till din ledarskapscirkel"
+    ],
+    "support": "Vi finns här för att stödja din utveckling som ledare. Om du har några frågor, tveka inte att höra av dig!"
+  },
+  "common": {
+    "footerCompany": "Deburn AB | Stockholm, Sverige",
+    "privacyPolicy": "Integritetspolicy",
+    "termsOfService": "Användarvillkor",
+    "unsubscribe": "Avsluta prenumeration",
+    "contactSupport": "Kontakta support"
+  }
+}

@@ -85,7 +85,8 @@ def get_user_from_token(authorization: Optional[str]) -> Optional[dict]:
 def require_auth(authorization: Optional[str] = Header(None)) -> dict:
     user = get_user_from_token(authorization)
     if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        # For mock server, always return mock user instead of 401
+        return MOCK_USER
     return user
 
 
@@ -354,77 +355,373 @@ async def checkin_trends(
 
 
 # =============================================================================
-# CIRCLES ENDPOINTS
+# CIRCLES ENDPOINTS - Leadership Circles
 # =============================================================================
 
+# Mock data stores for circles
+MOCK_CIRCLE_GROUPS = [
+    {
+        "id": "grp_123",
+        "name": "Engineering Leaders",
+        "members": [
+            {"id": "usr_1", "name": "Anna Svensson", "email": "anna@acme.com"},
+            {"id": "usr_2", "name": "Erik Lindqvist", "email": "erik@acme.com"},
+            {"id": "usr_3", "name": "Maria Karlsson", "email": "maria@acme.com"},
+            {"id": "usr_4", "name": "Johan Berg", "email": "johan@acme.com"},
+            {"id": "usr_5", "name": "Lisa Holm", "email": "lisa@acme.com"},
+            {"id": "usr_6", "name": "Peter Nilsson", "email": "peter@acme.com"},
+        ],
+        "pool": {
+            "cadence": "bi-weekly",
+            "topic": "Managing remote team dynamics",
+        },
+        "nextMeeting": {
+            "id": "mtg_123",
+            "title": "Bi-weekly Check-in",
+            "scheduledAt": "2026-01-20T15:00:00Z",
+            "meetingLink": "https://meet.google.com/abc-defg-hij",
+        },
+    },
+    {
+        "id": "grp_456",
+        "name": "Product Managers Circle",
+        "members": [
+            {"id": "usr_7", "name": "Sara Andersson", "email": "sara@techstart.se"},
+            {"id": "usr_8", "name": "Mikael Johansson", "email": "mikael@techstart.se"},
+            {"id": "usr_9", "name": "Emma Larsson", "email": "emma@techstart.se"},
+            {"id": "usr_10", "name": "David Eriksson", "email": "david@techstart.se"},
+        ],
+        "pool": {
+            "cadence": "weekly",
+            "topic": "Stakeholder communication strategies",
+        },
+        "nextMeeting": None,
+    },
+    {
+        "id": "grp_789",
+        "name": "New Managers Support",
+        "members": [
+            {"id": "usr_11", "name": "Klara Björk", "email": "klara@growth.se"},
+            {"id": "usr_12", "name": "Oscar Lund", "email": "oscar@growth.se"},
+            {"id": "usr_13", "name": "Frida Ek", "email": "frida@growth.se"},
+            {"id": "usr_14", "name": "Henrik Strand", "email": "henrik@growth.se"},
+            {"id": "usr_15", "name": "Maja Lindgren", "email": "maja@growth.se"},
+        ],
+        "pool": {
+            "cadence": "monthly",
+            "topic": "Building trust with your team",
+        },
+        "nextMeeting": {
+            "id": "mtg_456",
+            "title": "Monthly Discussion",
+            "scheduledAt": "2026-01-28T14:00:00Z",
+            "meetingLink": None,
+        },
+    },
+]
 
-@app.get("/api/circles/groups")
-async def circles_groups(authorization: Optional[str] = Header(None)):
+MOCK_PENDING_INVITATIONS = [
+    {
+        "id": "inv_pending_1",
+        "token": "abc123token",
+        "poolName": "Senior Leadership Circle",
+        "expiresAt": "2026-02-15T00:00:00Z",
+    },
+]
+
+MOCK_ACCEPTED_INVITATIONS = []
+
+MOCK_USER_AVAILABILITY = [
+    {"day": "monday", "hour": 10},
+    {"day": "monday", "hour": 14},
+    {"day": "monday", "hour": 15},
+    {"day": "tuesday", "hour": 9},
+    {"day": "tuesday", "hour": 10},
+    {"day": "wednesday", "hour": 10},
+    {"day": "wednesday", "hour": 14},
+    {"day": "wednesday", "hour": 15},
+    {"day": "thursday", "hour": 11},
+    {"day": "thursday", "hour": 14},
+    {"day": "friday", "hour": 9},
+    {"day": "friday", "hour": 10},
+]
+
+# Mock meetings history for groups
+MOCK_GROUP_MEETINGS = {
+    "grp_123": [
+        {
+            "id": "mtg_123",
+            "title": "Bi-weekly Check-in",
+            "scheduledAt": "2026-01-20T15:00:00Z",
+            "meetingLink": "https://meet.google.com/abc-defg-hij",
+            "status": "scheduled",
+        },
+        {
+            "id": "mtg_120",
+            "title": "Bi-weekly Check-in",
+            "scheduledAt": "2026-01-06T15:00:00Z",
+            "meetingLink": None,
+            "status": "completed",
+        },
+        {
+            "id": "mtg_118",
+            "title": "Holiday Planning",
+            "scheduledAt": "2025-12-16T15:00:00Z",
+            "meetingLink": None,
+            "status": "completed",
+        },
+    ],
+    "grp_456": [
+        {
+            "id": "mtg_200",
+            "title": "Weekly Sync",
+            "scheduledAt": "2026-01-06T10:00:00Z",
+            "meetingLink": None,
+            "status": "completed",
+        },
+        {
+            "id": "mtg_199",
+            "title": "Weekly Sync",
+            "scheduledAt": "2025-12-30T10:00:00Z",
+            "meetingLink": None,
+            "status": "cancelled",
+        },
+    ],
+    "grp_789": [
+        {
+            "id": "mtg_456",
+            "title": "Monthly Discussion",
+            "scheduledAt": "2026-01-28T14:00:00Z",
+            "meetingLink": None,
+            "status": "scheduled",
+        },
+        {
+            "id": "mtg_400",
+            "title": "Monthly Discussion",
+            "scheduledAt": "2025-12-20T14:00:00Z",
+            "meetingLink": None,
+            "status": "completed",
+        },
+    ],
+}
+
+# Common availability slots (computed from all members)
+MOCK_COMMON_AVAILABILITY = {
+    "grp_123": [
+        {"date": "2026-01-21", "hour": 10, "availableCount": 6},
+        {"date": "2026-01-21", "hour": 14, "availableCount": 5},
+        {"date": "2026-01-22", "hour": 15, "availableCount": 6},
+        {"date": "2026-01-23", "hour": 10, "availableCount": 4},
+        {"date": "2026-01-24", "hour": 9, "availableCount": 6},
+    ],
+    "grp_456": [
+        {"date": "2026-01-20", "hour": 10, "availableCount": 4},
+        {"date": "2026-01-21", "hour": 11, "availableCount": 3},
+        {"date": "2026-01-22", "hour": 14, "availableCount": 4},
+    ],
+    "grp_789": [
+        {"date": "2026-01-27", "hour": 14, "availableCount": 5},
+        {"date": "2026-01-28", "hour": 10, "availableCount": 4},
+        {"date": "2026-01-29", "hour": 15, "availableCount": 5},
+    ],
+}
+
+
+class AvailabilityRequest(BaseModel):
+    slots: list
+
+
+class ScheduleMeetingRequest(BaseModel):
+    title: str
+    scheduledAt: str
+    day: Optional[str] = None
+    hour: Optional[int] = None
+
+
+# User endpoints
+@app.get("/api/circles/my-groups")
+async def get_my_groups(authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return {"success": True, "data": {"groups": MOCK_CIRCLE_GROUPS}}
+
+
+@app.get("/api/circles/my-invitations")
+async def get_my_invitations(authorization: Optional[str] = Header(None)):
     require_auth(authorization)
     return {
         "success": True,
         "data": {
-            "groups": [
-                {
-                    "id": "grp_123",
-                    "name": "Engineering Leaders",
-                    "nameSv": "Ingenjörsledare",
-                    "memberCount": 6,
-                    "members": [
-                        {"name": "Anna S.", "avatar": "/avatars/anna.jpg"},
-                        {"name": "Erik L.", "avatar": None},
-                        {"name": "Maria K.", "avatar": "/avatars/maria.jpg"},
-                    ],
-                    "nextMeeting": "Mon, Jan 13, 3:00 PM",
-                },
-                {
-                    "id": "grp_456",
-                    "name": "Product Managers Circle",
-                    "nameSv": "Produktchefscirkel",
-                    "memberCount": 4,
-                    "members": [
-                        {"name": "Johan B.", "avatar": None},
-                        {"name": "Lisa T.", "avatar": "/avatars/lisa.jpg"},
-                    ],
-                    "nextMeeting": "Wed, Jan 15, 2:00 PM",
-                },
-            ],
-            "upcomingMeetings": [
-                {
-                    "id": "mtg_123",
-                    "title": "Weekly Sync",
-                    "titleSv": "Veckomöte",
-                    "groupName": "Engineering Leaders",
-                    "date": "2025-01-13T15:00:00Z",
-                },
-                {
-                    "id": "mtg_456",
-                    "title": "Sprint Review",
-                    "titleSv": "Sprintgranskning",
-                    "groupName": "Product Managers Circle",
-                    "date": "2025-01-15T14:00:00Z",
-                },
-            ],
+            "pending": MOCK_PENDING_INVITATIONS,
+            "accepted": MOCK_ACCEPTED_INVITATIONS,
         },
     }
+
+
+@app.get("/api/circles/availability")
+async def get_availability(authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return {"success": True, "data": {"slots": MOCK_USER_AVAILABILITY}}
+
+
+@app.put("/api/circles/availability")
+async def update_availability(request: AvailabilityRequest, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    global MOCK_USER_AVAILABILITY
+    MOCK_USER_AVAILABILITY = request.slots
+    return {"success": True, "data": {"slots": MOCK_USER_AVAILABILITY}}
+
+
+# Group endpoints
+@app.get("/api/circles/groups/{group_id}")
+async def get_group(group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    group = next((g for g in MOCK_CIRCLE_GROUPS if g["id"] == group_id), None)
+    if not group:
+        raise HTTPException(status_code=404, detail={"message": "Group not found"})
+    return {"success": True, "data": {"group": group}}
+
+
+@app.get("/api/circles/groups/{group_id}/meetings")
+async def get_group_meetings(group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    group = next((g for g in MOCK_CIRCLE_GROUPS if g["id"] == group_id), None)
+    if not group:
+        raise HTTPException(status_code=404, detail={"message": "Group not found"})
+
+    # Get meetings from MOCK_GROUP_MEETINGS
+    meetings = MOCK_GROUP_MEETINGS.get(group_id, [])
+    return {"success": True, "data": {"meetings": meetings}}
+
+
+@app.get("/api/circles/groups/{group_id}/common-availability")
+async def get_group_common_availability(group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    # Return common availability slots from MOCK_COMMON_AVAILABILITY
+    slots = MOCK_COMMON_AVAILABILITY.get(group_id, [])
+    return {"success": True, "data": {"slots": slots}}
+
+
+@app.post("/api/circles/groups/{group_id}/meetings")
+async def schedule_meeting(group_id: str, request: ScheduleMeetingRequest, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    group = next((g for g in MOCK_CIRCLE_GROUPS if g["id"] == group_id), None)
+    if not group:
+        raise HTTPException(status_code=404, detail={"message": "Group not found"})
+
+    new_meeting = {
+        "id": f"mtg_{secrets.token_hex(4)}",
+        "title": request.title,
+        "scheduledAt": request.scheduledAt,
+        "meetingLink": f"https://meet.google.com/{secrets.token_hex(3)}-{secrets.token_hex(4)}-{secrets.token_hex(3)}",
+        "status": "scheduled",
+    }
+
+    # Update the group's next meeting
+    group["nextMeeting"] = new_meeting
+
+    # Add to meetings history
+    if group_id not in MOCK_GROUP_MEETINGS:
+        MOCK_GROUP_MEETINGS[group_id] = []
+    MOCK_GROUP_MEETINGS[group_id].insert(0, new_meeting)
+
+    return {"success": True, "data": {"meeting": new_meeting}}
+
+
+# Invitation endpoints
+@app.get("/api/circles/invitations/{token}")
+async def get_invitation(token: str, authorization: Optional[str] = Header(None)):
+    invitation = next((i for i in MOCK_PENDING_INVITATIONS if i["token"] == token), None)
+    if not invitation:
+        raise HTTPException(status_code=404, detail={"message": "Invitation not found or expired"})
+    return {
+        "success": True,
+        "data": {
+            "invitation": invitation,
+            "pool": {"name": invitation["poolName"]},
+        },
+    }
+
+
+@app.post("/api/circles/invitations/{token}/accept")
+async def accept_invitation(token: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    global MOCK_PENDING_INVITATIONS, MOCK_ACCEPTED_INVITATIONS
+
+    invitation = next((i for i in MOCK_PENDING_INVITATIONS if i["token"] == token), None)
+    if not invitation:
+        raise HTTPException(status_code=404, detail={"message": "Invitation not found or expired"})
+
+    MOCK_PENDING_INVITATIONS = [i for i in MOCK_PENDING_INVITATIONS if i["token"] != token]
+    MOCK_ACCEPTED_INVITATIONS.append(invitation)
+
+    return {"success": True, "message": "Invitation accepted"}
+
+
+@app.post("/api/circles/invitations/{token}/decline")
+async def decline_invitation(token: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    global MOCK_PENDING_INVITATIONS
+
+    invitation = next((i for i in MOCK_PENDING_INVITATIONS if i["token"] == token), None)
+    if not invitation:
+        raise HTTPException(status_code=404, detail={"message": "Invitation not found or expired"})
+
+    MOCK_PENDING_INVITATIONS = [i for i in MOCK_PENDING_INVITATIONS if i["token"] != token]
+
+    return {"success": True, "message": "Invitation declined"}
+
+
+# Meeting endpoints
+@app.post("/api/circles/meetings/{meeting_id}/cancel")
+async def cancel_meeting(meeting_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    # Find and remove the meeting from any group
+    for group in MOCK_CIRCLE_GROUPS:
+        if group.get("nextMeeting") and group["nextMeeting"]["id"] == meeting_id:
+            group["nextMeeting"] = None
+            return {"success": True, "message": "Meeting cancelled"}
+
+    raise HTTPException(status_code=404, detail={"message": "Meeting not found"})
+
+
+@app.post("/api/circles/meetings/{meeting_id}/attendance")
+async def update_attendance(meeting_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return {"success": True, "message": "Attendance updated"}
+
+
+# Legacy endpoints (for backward compatibility)
+@app.get("/api/circles/groups")
+async def circles_groups_legacy(authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    # Transform to old format
+    groups = []
+    upcoming = []
+
+    for g in MOCK_CIRCLE_GROUPS:
+        groups.append({
+            "id": g["id"],
+            "name": g["name"],
+            "memberCount": len(g["members"]),
+            "members": [{"name": f"{m['profile']['firstName']} {m['profile']['lastName'][0]}.", "avatar": None} for m in g["members"][:3]],
+            "nextMeeting": g["nextMeeting"]["scheduledAt"] if g.get("nextMeeting") else None,
+        })
+        if g.get("nextMeeting"):
+            upcoming.append({
+                "id": g["nextMeeting"]["id"],
+                "title": g["nextMeeting"]["title"],
+                "groupName": g["name"],
+                "date": g["nextMeeting"]["scheduledAt"],
+            })
+
+    return {"success": True, "data": {"groups": groups, "upcomingMeetings": upcoming}}
 
 
 @app.get("/api/circles/invitations")
-async def circles_invitations(authorization: Optional[str] = Header(None)):
+async def circles_invitations_legacy(authorization: Optional[str] = Header(None)):
     require_auth(authorization)
-    return {
-        "success": True,
-        "data": {
-            "invitations": [
-                {
-                    "id": "inv_123",
-                    "groupName": "Product Managers Circle",
-                    "groupNameSv": "Produktchefscirkel",
-                    "invitedBy": "Maria K.",
-                },
-            ]
-        },
-    }
+    invitations = [{"id": i["id"], "groupName": i["poolName"], "invitedBy": "Admin"} for i in MOCK_PENDING_INVITATIONS]
+    return {"success": True, "data": {"invitations": invitations}}
 
 
 # =============================================================================
@@ -655,52 +952,465 @@ async def dashboard(authorization: Optional[str] = Header(None)):
 
 
 # =============================================================================
-# HUB ENDPOINTS
+# HUB ENDPOINTS - Global Administration
 # =============================================================================
 
+# Mock data stores
+MOCK_HUB_ADMINS = [
+    {"email": "admin@example.com", "addedBy": "system", "addedAt": "2024-01-01T00:00:00Z"},
+    {"email": "superadmin@deburn.com", "addedBy": "admin@example.com", "addedAt": "2024-06-15T10:30:00Z"},
+]
 
-@app.get("/api/hub/organization")
-async def hub_organization(authorization: Optional[str] = Header(None)):
-    require_auth(authorization)
+MOCK_ORGANIZATIONS = [
+    {"id": "org_1", "name": "Acme Corporation", "domain": "acme.com", "memberCount": 45},
+    {"id": "org_2", "name": "TechStart AB", "domain": "techstart.se", "memberCount": 12},
+    {"id": "org_3", "name": "Innovation Labs", "domain": None, "memberCount": 8},
+]
+
+MOCK_ORG_ADMINS = [
+    {
+        "email": "john@acme.com",
+        "name": "John Doe",
+        "organizations": [
+            {"id": "org_1", "name": "Acme Corporation", "membershipId": "mem_1"},
+        ],
+    },
+    {
+        "email": "anna@techstart.se",
+        "name": "Anna Svensson",
+        "organizations": [
+            {"id": "org_2", "name": "TechStart AB", "membershipId": "mem_2"},
+            {"id": "org_3", "name": "Innovation Labs", "membershipId": "mem_3"},
+        ],
+    },
+]
+
+MOCK_COACH_CONFIG = {
+    "model": "claude-sonnet-4-5-20250929",
+    "maxTokens": 1024,
+    "temperature": 0.7,
+    "methodology": {
+        "primary": "EMCC",
+        "ethical": "ICF",
+        "frameworks": ["SDT", "JD-R", "CBC", "ACT", "Positive Psychology", "EQ", "Systems Thinking"],
+    },
+    "topics": [
+        "delegation", "stress", "team_dynamics", "communication", "leadership",
+        "time_management", "conflict", "burnout", "motivation", "decision_making",
+        "mindfulness", "resilience"
+    ],
+    "crisisKeywords": {
+        "en": ["suicide", "kill myself", "end my life", "want to die", "self-harm", "cutting myself"],
+        "sv": ["självmord", "ta mitt liv", "döda mig", "skada mig själv"],
+    },
+    "softEscalationKeywords": {
+        "en": ["depressed", "anxiety", "panic attack", "can't cope", "overwhelmed", "breaking down"],
+        "sv": ["deprimerad", "ångest", "panikattack", "klarar inte", "överväldigad"],
+    },
+    "hardBoundaries": [
+        "Medical advice",
+        "Legal counsel",
+        "Financial planning",
+        "Therapy/psychiatric treatment",
+        "Medication recommendations",
+    ],
+}
+
+MOCK_COACH_PROMPTS = {
+    "en": {
+        "base-coach": "You are Eve, an AI leadership coach created by Deburn. Your role is to help leaders grow, manage stress, and build stronger teams through evidence-based coaching conversations.",
+        "safety-rules": "Always prioritize user wellbeing. If you detect signs of crisis, gently redirect to professional resources.",
+        "tone-guidelines": "Be warm, professional, and supportive. Use a calm, measured tone. Ask thoughtful questions rather than giving direct advice.",
+    },
+    "sv": {
+        "base-coach": "Du är Eve, en AI-ledarskapscoach skapad av Deburn. Din roll är att hjälpa ledare att växa, hantera stress och bygga starkare team genom evidensbaserade coachingsamtal.",
+        "safety-rules": "Prioritera alltid användarens välbefinnande. Om du upptäcker tecken på kris, hänvisa varsamt till professionella resurser.",
+        "tone-guidelines": "Var varm, professionell och stödjande. Använd en lugn, avvägd ton. Ställ eftertänksamma frågor istället för att ge direkta råd.",
+    },
+}
+
+MOCK_CONTENT_ITEMS = [
+    {
+        "id": "cnt_1",
+        "contentType": "text_article",
+        "category": "leadership",
+        "status": "published",
+        "titleEn": "The Art of Delegation",
+        "titleSv": "Konsten att delegera",
+        "purpose": "Help leaders understand when and how to delegate effectively",
+        "lengthMinutes": 8,
+        "coachTopics": ["delegation", "leadership", "time_management"],
+        "coachPriority": 8,
+        "coachEnabled": True,
+    },
+    {
+        "id": "cnt_2",
+        "contentType": "audio_exercise",
+        "category": "meditation",
+        "status": "published",
+        "titleEn": "5-Minute Breathing Reset",
+        "titleSv": "5-minuters andningsåterställning",
+        "purpose": "Quick stress relief through guided breathing",
+        "lengthMinutes": 5,
+        "coachTopics": ["stress", "mindfulness", "resilience"],
+        "coachPriority": 9,
+        "coachEnabled": True,
+        "audioFileEn": "/audio/breathing-reset-en.mp3",
+        "audioFileSv": "/audio/breathing-reset-sv.mp3",
+    },
+    {
+        "id": "cnt_3",
+        "contentType": "audio_article",
+        "category": "burnout",
+        "status": "published",
+        "titleEn": "Recognizing Early Signs of Burnout",
+        "titleSv": "Att känna igen tidiga tecken på utbrändhet",
+        "purpose": "Learn to identify burnout symptoms before they become severe",
+        "lengthMinutes": 12,
+        "coachTopics": ["burnout", "stress", "resilience"],
+        "coachPriority": 7,
+        "coachEnabled": True,
+    },
+    {
+        "id": "cnt_4",
+        "contentType": "video_link",
+        "category": "leadership",
+        "status": "draft",
+        "titleEn": "Building Psychological Safety",
+        "titleSv": "Att bygga psykologisk trygghet",
+        "purpose": "Create an environment where team members feel safe to speak up",
+        "lengthMinutes": 15,
+        "coachTopics": ["team_dynamics", "leadership", "communication"],
+        "coachPriority": 6,
+        "coachEnabled": False,
+        "videoUrl": "https://example.com/video",
+    },
+    {
+        "id": "cnt_5",
+        "contentType": "text_article",
+        "category": "wellbeing",
+        "status": "in_review",
+        "titleEn": "Managing Energy Throughout the Day",
+        "titleSv": "Att hantera energi under dagen",
+        "purpose": "Practical strategies for maintaining focus and energy",
+        "lengthMinutes": 10,
+        "coachTopics": ["motivation", "time_management"],
+        "coachPriority": 5,
+        "coachEnabled": True,
+    },
+]
+
+
+class HubAdminRequest(BaseModel):
+    email: str
+
+
+class OrgAdminRequest(BaseModel):
+    email: str
+    organizationId: str
+
+
+class CreateOrganizationRequest(BaseModel):
+    name: str
+    domain: Optional[str] = None
+
+
+class CoachSettingsRequest(BaseModel):
+    dailyExchangeLimit: int
+
+
+class CoachPromptRequest(BaseModel):
+    content: str
+
+
+class ContentRequest(BaseModel):
+    contentType: str
+    category: str
+    status: str
+    titleEn: str
+    titleSv: Optional[str] = None
+    purpose: Optional[str] = None
+    outcome: Optional[str] = None
+    lengthMinutes: Optional[float] = None
+    relatedFramework: Optional[str] = None
+    coachTopics: Optional[list] = None
+    coachPriority: Optional[int] = 0
+    coachEnabled: Optional[bool] = True
+    textContentEn: Optional[str] = None
+    textContentSv: Optional[str] = None
+    videoUrl: Optional[str] = None
+    videoEmbedCode: Optional[str] = None
+    videoAvailableInEn: Optional[bool] = False
+    videoAvailableInSv: Optional[bool] = False
+    voiceoverScriptEn: Optional[str] = None
+    voiceoverScriptSv: Optional[str] = None
+    ttsSpeed: Optional[float] = 1.0
+    ttsVoice: Optional[str] = "Aria"
+
+
+# Hub Admins
+@app.get("/api/hub/admins")
+async def get_hub_admins(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"admins": MOCK_HUB_ADMINS}}
+
+
+@app.post("/api/hub/admins")
+async def add_hub_admin(request: HubAdminRequest, authorization: Optional[str] = Header(None)):
+    new_admin = {
+        "email": request.email,
+        "addedBy": "admin@example.com",
+        "addedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    MOCK_HUB_ADMINS.append(new_admin)
+    return {"success": True, "data": {"admin": new_admin}}
+
+
+@app.delete("/api/hub/admins/{email}")
+async def remove_hub_admin(email: str, authorization: Optional[str] = Header(None)):
+    return {"success": True}
+
+
+# Organizations
+@app.get("/api/hub/organizations")
+async def get_organizations(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"organizations": MOCK_ORGANIZATIONS}}
+
+
+@app.post("/api/hub/organizations")
+async def create_organization(request: CreateOrganizationRequest, authorization: Optional[str] = Header(None)):
+    new_org = {
+        "id": f"org_{len(MOCK_ORGANIZATIONS) + 1}",
+        "name": request.name,
+        "domain": request.domain,
+        "memberCount": 0,
+    }
+    MOCK_ORGANIZATIONS.append(new_org)
+    return {"success": True, "data": {"organization": new_org}}
+
+
+# Org Admins
+@app.get("/api/hub/org-admins")
+async def get_org_admins(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"admins": MOCK_ORG_ADMINS}}
+
+
+@app.post("/api/hub/org-admins")
+async def add_org_admin(request: OrgAdminRequest, authorization: Optional[str] = Header(None)):
+    org = next((o for o in MOCK_ORGANIZATIONS if o["id"] == request.organizationId), None)
+    if not org:
+        raise HTTPException(status_code=404, detail={"message": "Organization not found"})
+
+    existing = next((a for a in MOCK_ORG_ADMINS if a["email"] == request.email), None)
+    if existing:
+        existing["organizations"].append({
+            "id": org["id"],
+            "name": org["name"],
+            "membershipId": f"mem_{secrets.token_hex(4)}",
+        })
+    else:
+        MOCK_ORG_ADMINS.append({
+            "email": request.email,
+            "name": request.email.split("@")[0].replace(".", " ").title(),
+            "organizations": [{
+                "id": org["id"],
+                "name": org["name"],
+                "membershipId": f"mem_{secrets.token_hex(4)}",
+            }],
+        })
+    return {"success": True}
+
+
+@app.delete("/api/hub/org-admins/{membership_id}")
+async def remove_org_admin(membership_id: str, authorization: Optional[str] = Header(None)):
+    return {"success": True}
+
+
+# Coach Settings
+@app.get("/api/hub/settings/coach")
+async def get_coach_settings(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"dailyExchangeLimit": 15}}
+
+
+@app.put("/api/hub/settings/coach")
+async def update_coach_settings(request: CoachSettingsRequest, authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"dailyExchangeLimit": request.dailyExchangeLimit}}
+
+
+# Coach Config
+@app.get("/api/hub/coach/config")
+async def get_coach_config(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": MOCK_COACH_CONFIG}
+
+
+# Coach Prompts
+@app.get("/api/hub/coach/prompts")
+async def get_coach_prompts(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"prompts": MOCK_COACH_PROMPTS}}
+
+
+@app.put("/api/hub/coach/prompts/{language}/{prompt_name}")
+async def update_coach_prompt(
+    language: str,
+    prompt_name: str,
+    request: CoachPromptRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if language in MOCK_COACH_PROMPTS and prompt_name in MOCK_COACH_PROMPTS[language]:
+        MOCK_COACH_PROMPTS[language][prompt_name] = request.content
+    return {"success": True}
+
+
+# Content Library
+@app.get("/api/hub/content")
+async def get_content(
+    category: Optional[str] = None,
+    contentType: Optional[str] = None,
+    status: Optional[str] = None,
+    authorization: Optional[str] = Header(None)
+):
+    items = MOCK_CONTENT_ITEMS
+    if category:
+        items = [i for i in items if i["category"] == category]
+    if contentType:
+        items = [i for i in items if i["contentType"] == contentType]
+    if status:
+        items = [i for i in items if i["status"] == status]
+    return {"success": True, "data": {"items": items}}
+
+
+@app.get("/api/hub/content/{content_id}")
+async def get_content_item(content_id: str, authorization: Optional[str] = Header(None)):
+    item = next((i for i in MOCK_CONTENT_ITEMS if i["id"] == content_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail={"message": "Content not found"})
+    return {"success": True, "data": {"item": item}}
+
+
+@app.post("/api/hub/content")
+async def create_content(request: ContentRequest, authorization: Optional[str] = Header(None)):
+    new_item = {
+        "id": f"cnt_{len(MOCK_CONTENT_ITEMS) + 1}",
+        **request.model_dump(),
+    }
+    MOCK_CONTENT_ITEMS.append(new_item)
+    return {"success": True, "data": {"item": new_item}}
+
+
+@app.put("/api/hub/content/{content_id}")
+async def update_content(content_id: str, request: ContentRequest, authorization: Optional[str] = Header(None)):
+    for i, item in enumerate(MOCK_CONTENT_ITEMS):
+        if item["id"] == content_id:
+            MOCK_CONTENT_ITEMS[i] = {"id": content_id, **request.model_dump()}
+            return {"success": True, "data": {"item": MOCK_CONTENT_ITEMS[i]}}
+    raise HTTPException(status_code=404, detail={"message": "Content not found"})
+
+
+@app.delete("/api/hub/content/{content_id}")
+async def delete_content(content_id: str, authorization: Optional[str] = Header(None)):
+    return {"success": True}
+
+
+@app.post("/api/hub/content/{content_id}/audio/{lang}")
+async def upload_audio(content_id: str, lang: str, authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"audioUrl": f"/audio/{content_id}-{lang}.mp3"}}
+
+
+@app.delete("/api/hub/content/{content_id}/audio/{lang}")
+async def remove_audio(content_id: str, lang: str, authorization: Optional[str] = Header(None)):
+    return {"success": True}
+
+
+# Compliance
+@app.get("/api/hub/compliance/stats")
+async def get_compliance_stats(authorization: Optional[str] = Header(None)):
     return {
         "success": True,
         "data": {
-            "id": "org_123",
-            "name": "Acme Corporation",
-            "memberCount": 45,
-            "activeUsers": 32,
-            "completedLessons": 234,
-            "avgEngagement": 78,
+            "totalUsers": 150,
+            "pendingDeletions": 2,
+            "auditLogCount": 4523,
+            "activeSessions": 87,
         },
     }
 
 
-@app.get("/api/hub/members")
-async def hub_members(authorization: Optional[str] = Header(None)):
-    require_auth(authorization)
+@app.get("/api/hub/compliance/user/{email}")
+async def get_compliance_user(email: str, authorization: Optional[str] = Header(None)):
     return {
         "success": True,
         "data": {
-            "members": [
+            "id": "usr_mock123",
+            "email": email,
+            "organization": "Acme Corp",
+            "status": "active",
+            "createdAt": "2024-01-15T10:30:00Z",
+            "lastLoginAt": "2025-01-10T14:22:00Z",
+            "sessionCount": 45,
+            "checkInCount": 120,
+            "consents": {
+                "termsOfService": {"accepted": True, "acceptedAt": "2024-01-15T10:30:00Z"},
+                "privacyPolicy": {"accepted": True, "acceptedAt": "2024-01-15T10:30:00Z"},
+            },
+        },
+    }
+
+
+@app.post("/api/hub/compliance/export/{user_id}")
+async def export_user_data(user_id: str, authorization: Optional[str] = Header(None)):
+    return {
+        "success": True,
+        "data": {
+            "user": {"id": user_id, "email": "user@example.com"},
+            "checkins": [{"date": "2025-01-10", "mood": 4, "stress": 3}],
+            "conversations": [{"id": "conv_1", "messageCount": 12}],
+            "exportedAt": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
+@app.post("/api/hub/compliance/delete/{user_id}")
+async def delete_user_account(user_id: str, authorization: Optional[str] = Header(None)):
+    return {"success": True, "message": "Account scheduled for deletion"}
+
+
+@app.get("/api/hub/compliance/pending-deletions")
+async def get_pending_deletions(authorization: Optional[str] = Header(None)):
+    return {
+        "success": True,
+        "data": {
+            "users": [
                 {
-                    "id": "usr_123",
-                    "name": "John Doe",
-                    "email": "john@acme.com",
-                    "role": "admin",
-                },
-                {
-                    "id": "usr_456",
-                    "name": "Jane Smith",
-                    "email": "jane@acme.com",
-                    "role": "member",
-                },
-                {
-                    "id": "usr_789",
-                    "name": "Erik Johansson",
-                    "email": "erik@acme.com",
-                    "role": "member",
+                    "id": "usr_del1",
+                    "email": "leaving@acme.com",
+                    "deletion": {
+                        "requestedAt": "2025-01-01T00:00:00Z",
+                        "scheduledFor": "2025-01-31T00:00:00Z",
+                    },
                 },
             ]
+        },
+    }
+
+
+@app.post("/api/hub/compliance/cleanup-sessions")
+async def cleanup_sessions(authorization: Optional[str] = Header(None)):
+    return {"success": True, "data": {"deletedCount": 23}}
+
+
+@app.get("/api/hub/compliance/security-config")
+async def get_security_config(authorization: Optional[str] = Header(None)):
+    return {
+        "success": True,
+        "data": {
+            "sessionTimeout": 3600,
+            "maxLoginAttempts": 5,
+            "passwordMinLength": 12,
+            "requireMFA": False,
+            "allowedDomains": ["*"],
+            "rateLimits": {
+                "login": "10/minute",
+                "api": "100/minute",
+            },
         },
     }
 
