@@ -37,10 +37,9 @@ def get_auth_provider() -> AuthProvider:
         raise ValueError("JWT_SECRET is required for JWT auth")
 
     return JWTAuth(
-        secret_key=settings.JWT_SECRET,
+        secret=settings.JWT_SECRET,
         algorithm=settings.JWT_ALGORITHM,
         access_token_expire_minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES,
-        refresh_token_expire_days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS,
     )
 
 
