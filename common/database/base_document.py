@@ -15,10 +15,13 @@ Example:
             name = "users"  # MongoDB collection name
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document
 from pydantic import Field
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -46,7 +49,15 @@ class BaseDocument(Document):
     async def save(self, *args, **kwargs):
         """Override save to automatically update updated_at timestamp."""
         self.updated_at = _utcnow()
-        return await super().save(*args, **kwargs)
+        collection_name = self.Settings.name if hasattr(self.Settings, "name") else self.__class__.__name__
+        logger.debug(f"Saving document to {collection_name}: {self.id}")
+        try:
+            result = await super().save(*args, **kwargs)
+            logger.debug(f"Document saved successfully: {self.id}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to save document to {collection_name}: {e}")
+            raise
 
     async def update(self, *args, **kwargs):
         """Override update to automatically update updated_at timestamp."""
@@ -56,4 +67,12 @@ class BaseDocument(Document):
                 args[0]["$set"]["updated_at"] = _utcnow()
             else:
                 args = ({"$set": {"updated_at": _utcnow()}, **args[0]},) + args[1:]
-        return await super().update(*args, **kwargs)
+        collection_name = self.Settings.name if hasattr(self.Settings, "name") else self.__class__.__name__
+        logger.debug(f"Updating document in {collection_name}: {self.id}")
+        try:
+            result = await super().update(*args, **kwargs)
+            logger.debug(f"Document updated successfully: {self.id}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to update document in {collection_name}: {e}")
+            raise

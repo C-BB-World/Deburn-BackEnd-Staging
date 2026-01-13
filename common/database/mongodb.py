@@ -17,9 +17,12 @@ Example:
     )
 """
 
+import logging
 from typing import List, Type, Optional
 from beanie import init_beanie, Document
 from motor.motor_asyncio import AsyncIOMotorClient
+
+logger = logging.getLogger(__name__)
 
 
 class MongoDB:
@@ -44,22 +47,36 @@ class MongoDB:
             database_name: Name of the database to use
             document_models: List of Beanie Document classes to initialize
         """
-        self._client = AsyncIOMotorClient(uri)
-        self._database_name = database_name
+        # Mask the URI for logging (hide credentials)
+        masked_uri = uri.split("@")[-1] if "@" in uri else uri
+        logger.info(f"Connecting to MongoDB: {masked_uri}")
+        logger.debug(f"Database name: {database_name}")
+        logger.debug(f"Document models: {[m.__name__ for m in document_models]}")
 
-        await init_beanie(
-            database=self._client[database_name],
-            document_models=document_models,
-        )
-        self._initialized = True
+        try:
+            self._client = AsyncIOMotorClient(uri)
+            self._database_name = database_name
+
+            logger.debug("Initializing Beanie ODM")
+            await init_beanie(
+                database=self._client[database_name],
+                document_models=document_models,
+            )
+            self._initialized = True
+            logger.info(f"Successfully connected to MongoDB database: {database_name}")
+        except Exception as e:
+            logger.error(f"Failed to connect to MongoDB: {e}")
+            raise
 
     async def disconnect(self) -> None:
         """Close the MongoDB connection."""
         if self._client:
+            logger.info(f"Disconnecting from MongoDB database: {self._database_name}")
             self._client.close()
             self._client = None
             self._database_name = None
             self._initialized = False
+            logger.debug("MongoDB connection closed")
 
     @property
     def is_connected(self) -> bool:
@@ -83,5 +100,7 @@ class MongoDB:
         Useful for operations not covered by Beanie, like aggregations.
         """
         if not self._client or not self._database_name:
+            logger.error("Attempted to get collection without database connection")
             raise RuntimeError("Database not connected")
+        logger.debug(f"Getting collection: {name}")
         return self._client[self._database_name][name]
