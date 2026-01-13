@@ -68,7 +68,7 @@ class User(BaseDocument):
     email: Indexed(EmailStr, unique=True)  # type: ignore
 
     # Authentication
-    password_hash: str
+    password_hash: str = Field(..., alias="passwordHash")
 
     # Profile - required at registration
     organization: str = Field(..., min_length=2, max_length=100)
@@ -125,6 +125,8 @@ class User(BaseDocument):
             "status",
             "deletion_scheduled_for",
         ]
+
+    model_config = {"populate_by_name": True}
 
     @property
     def full_name(self) -> Optional[str]:
