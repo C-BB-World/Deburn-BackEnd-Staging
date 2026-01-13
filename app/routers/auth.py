@@ -150,15 +150,15 @@ async def login(
     logger.info(f"Login attempt for email: {request.email}")
 
     # Find user by email
-    logger.info(f"Looking up user by email: {request.email.lower()}")
+    logger.warning(f"DEBUG: Looking up user by email: {request.email.lower()}")
     user = await User.find_one(User.email == request.email.lower())
 
     # Debug: Check if any users exist at all
     if not user:
         all_users = await User.find_all().to_list()
-        logger.info(f"Total users in database: {len(all_users)}")
+        logger.warning(f"DEBUG: Total users in database: {len(all_users)}")
         if all_users:
-            logger.info(f"Sample emails in DB: {[u.email for u in all_users[:3]]}")
+            logger.warning(f"DEBUG: Sample emails in DB: {[u.email for u in all_users[:3]]}")
 
     # Generic error to prevent enumeration
     login_error = JSONResponse(
@@ -226,7 +226,6 @@ async def logout(
 @router.post("/forgot-password")
 async def forgot_password(
     request: ForgotPasswordRequest,
-    auth: AuthProvider = Depends(get_auth_provider),
 ):
     """
     Request a password reset email.
