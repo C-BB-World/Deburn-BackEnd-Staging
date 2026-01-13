@@ -150,8 +150,15 @@ async def login(
     logger.info(f"Login attempt for email: {request.email}")
 
     # Find user by email
-    logger.debug(f"Looking up user by email: {request.email.lower()}")
+    logger.info(f"Looking up user by email: {request.email.lower()}")
     user = await User.find_one(User.email == request.email.lower())
+
+    # Debug: Check if any users exist at all
+    if not user:
+        all_users = await User.find_all().to_list()
+        logger.info(f"Total users in database: {len(all_users)}")
+        if all_users:
+            logger.info(f"Sample emails in DB: {[u.email for u in all_users[:3]]}")
 
     # Generic error to prevent enumeration
     login_error = JSONResponse(
@@ -179,7 +186,7 @@ async def login(
 
     # Create access token
     logger.debug(f"Creating access token for user: {user.id}")
-    token = auth.create_token(str(user.id))
+    token = await auth.create_token(str(user.id))
 
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
