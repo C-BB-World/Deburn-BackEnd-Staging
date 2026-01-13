@@ -4,11 +4,14 @@ Authentication Router.
 Handles user registration, login, logout, password reset, and email verification.
 """
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import JSONResponse
 
 from common.auth import AuthProvider
@@ -71,17 +74,22 @@ async def register(
 
     Creates the user with pending_verification status and sends verification email.
     """
+    logger.info(f"Registration attempt for email: {request.email}")
+
     # Validate password strength
     is_valid, error_msg = validate_password(request.password)
     if not is_valid:
+        logger.warning(f"Registration failed - weak password for email: {request.email}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(error_msg, code="WEAK_PASSWORD"),
         )
 
     # Check if email already exists
+    logger.debug(f"Checking if email exists: {request.email.lower()}")
     existing_user = await User.find_one(User.email == request.email.lower())
     if existing_user:
+        logger.warning(f"Registration failed - email already exists: {request.email}")
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT,
             content=error_response(
@@ -91,6 +99,7 @@ async def register(
         )
 
     # Hash password
+    logger.debug("Hashing password")
     password_hash = auth.hash_password(request.password)
 
     # Generate verification token
@@ -100,6 +109,7 @@ async def register(
     )
 
     # Create user
+    logger.debug(f"Creating user record for: {request.email.lower()}")
     user = User(
         email=request.email.lower(),
         password_hash=password_hash,
@@ -115,6 +125,7 @@ async def register(
         email_verification_expires_at=verification_expiry,
     )
     await user.insert()
+    logger.info(f"User registered successfully: {user.id} ({request.email.lower()})")
 
     # TODO: Send verification email
     # await email_service.send_verification_email(user.email, verification_token)
@@ -136,7 +147,10 @@ async def login(
     """
     Authenticate user and return access token.
     """
+    logger.info(f"Login attempt for email: {request.email}")
+
     # Find user by email
+    logger.debug(f"Looking up user by email: {request.email.lower()}")
     user = await User.find_one(User.email == request.email.lower())
 
     # Generic error to prevent enumeration
@@ -149,22 +163,28 @@ async def login(
     )
 
     if not user:
+        logger.warning(f"Login failed - user not found: {request.email}")
         return login_error
 
     # Check if user is active
     if user.status != "active":
+        logger.warning(f"Login failed - user not active: {request.email} (status: {user.status})")
         return login_error
 
     # Verify password
+    logger.debug(f"Verifying password for user: {user.id}")
     if not auth.verify_password(request.password, user.password_hash):
+        logger.warning(f"Login failed - invalid password for user: {request.email}")
         return login_error
 
     # Create access token
+    logger.debug(f"Creating access token for user: {user.id}")
     token = auth.create_token(str(user.id))
 
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
     await user.save()
+    logger.info(f"Login successful for user: {user.id} ({request.email})")
 
     return success_response(
         {
@@ -188,6 +208,7 @@ async def logout(
     In a stateless JWT setup, the client simply discards the token.
     For session tracking, we would invalidate the session here.
     """
+    logger.info(f"Logout for user: {user.id} ({user.email})")
     # TODO: If tracking sessions, remove the session from user.sessions
     return success_response(message="Signed out successfully")
 
@@ -205,10 +226,13 @@ async def forgot_password(
 
     Always returns success to prevent email enumeration.
     """
+    logger.info(f"Password reset requested for email: {request.email}")
+
     # Find user by email
     user = await User.find_one(User.email == request.email.lower())
 
     if user and user.status == "active":
+        logger.debug(f"User found, generating reset token for: {user.id}")
         # Generate reset token
         reset_token = generate_token()
         reset_expiry = datetime.now(timezone.utc) + timedelta(
@@ -219,9 +243,12 @@ async def forgot_password(
         user.password_reset_token = reset_token
         user.password_reset_expires_at = reset_expiry
         await user.save()
+        logger.info(f"Password reset token generated for user: {user.id}")
 
         # TODO: Send reset email
         # await email_service.send_password_reset_email(user.email, reset_token)
+    else:
+        logger.debug(f"Password reset requested for non-existent or inactive email: {request.email}")
 
     # Always return success to prevent enumeration
     return success_response(
@@ -240,18 +267,23 @@ async def reset_password(
     """
     Reset password using a reset token.
     """
+    logger.info("Password reset attempt with token")
+
     # Validate password strength
     is_valid, error_msg = validate_password(request.password)
     if not is_valid:
+        logger.warning("Password reset failed - weak password")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(error_msg, code="WEAK_PASSWORD"),
         )
 
     # Find user by reset token
+    logger.debug("Looking up user by reset token")
     user = await User.find_one(User.password_reset_token == request.token)
 
     if not user:
+        logger.warning("Password reset failed - invalid token")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(
@@ -264,6 +296,7 @@ async def reset_password(
     if user.password_reset_expires_at and user.password_reset_expires_at < datetime.now(
         timezone.utc
     ):
+        logger.warning(f"Password reset failed - token expired for user: {user.id}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(
@@ -273,10 +306,12 @@ async def reset_password(
         )
 
     # Update password
+    logger.debug(f"Updating password for user: {user.id}")
     user.password_hash = auth.hash_password(request.password)
     user.password_reset_token = None
     user.password_reset_expires_at = None
     await user.save()
+    logger.info(f"Password reset successful for user: {user.id}")
 
     return success_response(
         message="Password has been reset successfully. You can now sign in."
@@ -291,10 +326,14 @@ async def verify_email(request: VerifyEmailRequest):
     """
     Verify email address using verification token.
     """
+    logger.info("Email verification attempt with token")
+
     # Find user by verification token
+    logger.debug("Looking up user by verification token")
     user = await User.find_one(User.email_verification_token == request.token)
 
     if not user:
+        logger.warning("Email verification failed - invalid token")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(
@@ -308,6 +347,7 @@ async def verify_email(request: VerifyEmailRequest):
         user.email_verification_expires_at
         and user.email_verification_expires_at < datetime.now(timezone.utc)
     ):
+        logger.warning(f"Email verification failed - token expired for user: {user.id}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content=error_response(
@@ -317,11 +357,13 @@ async def verify_email(request: VerifyEmailRequest):
         )
 
     # Activate user
+    logger.debug(f"Activating user: {user.id}")
     user.status = "active"
     user.email_verified_at = datetime.now(timezone.utc)
     user.email_verification_token = None
     user.email_verification_expires_at = None
     await user.save()
+    logger.info(f"Email verified successfully for user: {user.id} ({user.email})")
 
     return success_response(
         {
@@ -345,10 +387,13 @@ async def resend_verification(request: ResendVerificationRequest):
 
     Always returns success to prevent email enumeration.
     """
+    logger.info(f"Resend verification requested for email: {request.email}")
+
     # Find user by email
     user = await User.find_one(User.email == request.email.lower())
 
     if user and user.status == "pending_verification":
+        logger.debug(f"User found with pending verification: {user.id}")
         # Generate new verification token
         verification_token = generate_token()
         verification_expiry = datetime.now(timezone.utc) + timedelta(
@@ -358,9 +403,12 @@ async def resend_verification(request: ResendVerificationRequest):
         user.email_verification_token = verification_token
         user.email_verification_expires_at = verification_expiry
         await user.save()
+        logger.info(f"New verification token generated for user: {user.id}")
 
         # TODO: Send verification email
         # await email_service.send_verification_email(user.email, verification_token)
+    else:
+        logger.debug(f"Resend verification skipped - user not found or not pending: {request.email}")
 
     # Always return success to prevent enumeration
     return success_response(
