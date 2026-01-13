@@ -21,6 +21,8 @@ Example:
     print(claims["sub"])  # user_id
 """
 
+import base64
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional, Callable, Awaitable
@@ -95,13 +97,39 @@ class JWTAuth(AuthProvider):
         self._reset_tokens: Dict[str, Dict[str, Any]] = {}
         self._verification_tokens: Dict[str, Dict[str, Any]] = {}
 
+    def _prehash_password(self, password: str) -> str:
+        """
+        Pre-hash password with SHA-256 before bcrypt.
+
+        This handles bcrypt's 72-byte limit and ensures consistent
+        behavior across all password lengths.
+        """
+        sha256_hash = hashlib.sha256(password.encode("utf-8")).digest()
+        return base64.b64encode(sha256_hash).decode("utf-8")
+
     def hash_password(self, password: str) -> str:
-        """Hash a password using bcrypt."""
-        return bcrypt.hash(password)
+        """Hash a password using bcrypt with SHA-256 pre-hashing."""
+        prehashed = self._prehash_password(password)
+        return bcrypt.hash(prehashed)
 
     def verify_password(self, password: str, hashed: str) -> bool:
-        """Verify a password against its hash."""
-        return bcrypt.verify(password, hashed)
+        """
+        Verify a password against its hash.
+
+        Supports both new (SHA-256 pre-hashed) and legacy (direct bcrypt) hashes
+        for backwards compatibility.
+        """
+        # Try new method first (SHA-256 pre-hash)
+        prehashed = self._prehash_password(password)
+        if bcrypt.verify(prehashed, hashed):
+            return True
+
+        # Fallback to legacy method (direct bcrypt) for old hashes
+        try:
+            return bcrypt.verify(password, hashed)
+        except ValueError:
+            # Password too long for direct bcrypt - definitely not a match
+            return False
 
     async def create_user(
         self,
