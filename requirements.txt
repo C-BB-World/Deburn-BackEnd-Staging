@@ -24,6 +24,7 @@ motor>=3.3.0
 
 # Configuration - Pydantic Settings
 pydantic-settings>=2.1.0
+pydantic[email]>=2.0.0
 
 # Authentication - JWT
 python-jose[cryptography]>=3.3.0
