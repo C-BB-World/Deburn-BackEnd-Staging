@@ -119,7 +119,7 @@ class User(BaseDocument):
     class Settings:
         name = "users"
         indexes = [
-            "email",
+            # Note: "email" is already indexed via Indexed() on the field
             "email_verification_token",
             "password_reset_token",
             "status",
