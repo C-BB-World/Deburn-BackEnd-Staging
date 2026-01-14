@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends
 
 from common.utils import success_response
 
-from app.models import User, CheckIn
-from app.dependencies import get_current_user, require_admin
+from app_v1.models import User, CheckIn
+from app_v1.dependencies import get_current_user, require_admin
 
 router = APIRouter()
 

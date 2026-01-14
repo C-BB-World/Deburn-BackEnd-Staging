@@ -4,7 +4,7 @@ BrainBank Pydantic Schemas.
 Request and response models for API endpoints.
 """
 
-from app.schemas.auth import (
+from app_v1.schemas.auth import (
     RegisterRequest,
     LoginRequest,
     ForgotPasswordRequest,
@@ -14,7 +14,7 @@ from app.schemas.auth import (
     UserResponse,
     LoginResponse,
 )
-from app.schemas.checkin import (
+from app_v1.schemas.checkin import (
     CheckInRequest,
     CheckInMetrics,
     CheckInResponse,
@@ -22,7 +22,7 @@ from app.schemas.checkin import (
     TrendData,
     TrendsResponse,
 )
-from app.schemas.coach import (
+from app_v1.schemas.coach import (
     WellbeingContext,
     CoachContext,
     ChatRequest,
@@ -30,7 +30,7 @@ from app.schemas.coach import (
     ChatResponse,
     ConversationStarter,
 )
-from app.schemas.profile import (
+from app_v1.schemas.profile import (
     ProfileUpdateRequest,
     ProfileResponse,
 )

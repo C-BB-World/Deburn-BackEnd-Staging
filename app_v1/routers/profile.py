@@ -9,9 +9,9 @@ from fastapi.responses import JSONResponse
 
 from common.utils import success_response, error_response
 
-from app.models import User
-from app.schemas.profile import ProfileUpdateRequest
-from app.dependencies import get_current_user
+from app_v1.models import User
+from app_v1.schemas.profile import ProfileUpdateRequest
+from app_v1.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -59,7 +59,7 @@ async def update_profile(
     """
     # Update profile fields if provided
     if user.profile is None:
-        from app.models import UserProfile
+        from app_v1.models import UserProfile
         user.profile = UserProfile()
 
     if request.firstName is not None:
@@ -126,7 +126,7 @@ async def upload_avatar(
 
     # Update user profile
     if user.profile is None:
-        from app.models import UserProfile
+        from app_v1.models import UserProfile
         user.profile = UserProfile()
 
     user.profile.avatar_url = avatar_url

@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query
 
 from common.utils import success_response
 
-from app.models import User, CheckIn
-from app.dependencies import get_current_user
+from app_v1.models import User, CheckIn
+from app_v1.dependencies import get_current_user
 
 router = APIRouter()
 

@@ -12,11 +12,11 @@ from fastapi.responses import StreamingResponse
 
 from common.utils import success_response
 
-from app.config import settings
-from app.models import User
-from app.schemas.coach import ChatRequest, ConversationStarter
-from app.dependencies import get_current_user, get_coach_service
-from app.services.coach_service import CoachService
+from app_v1.config import settings
+from app_v1.models import User
+from app_v1.schemas.coach import ChatRequest, ConversationStarter
+from app_v1.dependencies import get_current_user, get_coach_service
+from app_v1.services.coach_service import CoachService
 
 router = APIRouter()
 

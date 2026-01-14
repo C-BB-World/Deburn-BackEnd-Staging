@@ -12,9 +12,9 @@ from fastapi import Depends, Header, HTTPException, status
 from common.auth import AuthProvider, JWTAuth, FirebaseAuth
 from common.ai import AIProvider, ClaudeProvider, OpenAIProvider
 
-from app.config import settings
-from app.models import User
-from app.services.coach_service import CoachService
+from app_v1.config import settings
+from app_v1.models import User
+from app_v1.services.coach_service import CoachService
 
 
 # =============================================================================
@@ -223,7 +223,7 @@ def get_coach_service(
     Injects the AI provider for flexibility.
     """
     # Import i18n from api module to avoid circular imports
-    from api import i18n
+    from api_v1 import i18n
 
     return CoachService(
         ai_provider=ai,

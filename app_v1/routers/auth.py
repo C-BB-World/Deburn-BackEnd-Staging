@@ -18,9 +18,9 @@ from common.auth import AuthProvider
 from common.utils import success_response, error_response
 from common.utils.password import validate_password
 
-from app.config import settings
-from app.models import User, UserProfile
-from app.schemas.auth import (
+from app_v1.config import settings
+from app_v1.models import User, UserProfile
+from app_v1.schemas.auth import (
     RegisterRequest,
     LoginRequest,
     ForgotPasswordRequest,
@@ -28,7 +28,7 @@ from app.schemas.auth import (
     VerifyEmailRequest,
     ResendVerificationRequest,
 )
-from app.dependencies import get_auth_provider, get_current_user
+from app_v1.dependencies import get_auth_provider, get_current_user
 
 router = APIRouter()
 
