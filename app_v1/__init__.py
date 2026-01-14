@@ -10,6 +10,6 @@ This package contains all BrainBank-specific implementations:
 Uses generic infrastructure from the common/ package.
 """
 
-from app.config import settings
+from app_v1.config import settings
 
 __all__ = ["settings"]

@@ -15,11 +15,11 @@ from common.i18n import I18nService
 from common.utils import success_response
 
 # App-specific imports
-from app.config import settings
-from app.models import User, CheckIn, Organization
+from app_v1.config import settings
+from app_v1.models import User, CheckIn, Organization
 
 # Import routers
-from app.routers import (
+from app_v1.routers import (
     auth_router,
     admin_router,
     checkin_router,
