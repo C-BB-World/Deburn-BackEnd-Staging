@@ -15,8 +15,50 @@ Example:
     print(claims["uid"])  # Firebase user ID
 """
 
+import os
 from typing import Dict, Any, Optional
 from common.auth.base import AuthProvider
+
+# Try to load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on system environment variables
+
+
+def _get_firebase_credentials_from_env() -> Optional[Dict[str, Any]]:
+    """
+    Check if Firebase credentials are present in environment variables.
+    Returns credentials dict if all required fields are present, None otherwise.
+    """
+    required_fields = [
+        "PROJECT_ID",
+        "PRIVATE_KEY",
+        "CLIENT_EMAIL",
+    ]
+
+    # Check if required fields are present
+    for field in required_fields:
+        if not os.environ.get(field):
+            return None
+
+    # Build credentials dict from environment variables
+    credentials = {
+        "type": os.environ.get("TYPE", "service_account").strip('"').strip(","),
+        "project_id": os.environ.get("PROJECT_ID", "").strip('"').strip(","),
+        "private_key_id": os.environ.get("PRIVATE_KEY_ID", "").strip('"').strip(","),
+        "private_key": os.environ.get("PRIVATE_KEY", "").strip('"').strip(","),
+        "client_email": os.environ.get("CLIENT_EMAIL", "").strip('"').strip(","),
+        "client_id": os.environ.get("CLIENT_ID", "").strip('"').strip(","),
+        "auth_uri": os.environ.get("AUTH_URI", "https://accounts.google.com/o/oauth2/auth").strip('"').strip(","),
+        "token_uri": os.environ.get("TOKEN_URI", "https://oauth2.googleapis.com/token").strip('"').strip(","),
+        "auth_provider_x509_cert_url": os.environ.get("AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs").strip('"').strip(","),
+        "client_x509_cert_url": os.environ.get("CLIENT_X509_CERT_URL", "").strip('"').strip(","),
+        "universe_domain": os.environ.get("UNIVERSE_DOMAIN", "googleapis.com").strip('"').strip(","),
+    }
+
+    return credentials
 
 
 class FirebaseAuth(AuthProvider):
@@ -60,8 +102,13 @@ class FirebaseAuth(AuthProvider):
             elif credentials_dict:
                 cred = credentials.Certificate(credentials_dict)
             else:
-                # Use default credentials (for GCP environments)
-                cred = credentials.ApplicationDefault()
+                # Check if Firebase credentials are available in environment variables
+                env_credentials = _get_firebase_credentials_from_env()
+                if env_credentials:
+                    cred = credentials.Certificate(env_credentials)
+                else:
+                    # Use default credentials (for GCP environments)
+                    cred = credentials.ApplicationDefault()
 
             options = {}
             if project_id:
