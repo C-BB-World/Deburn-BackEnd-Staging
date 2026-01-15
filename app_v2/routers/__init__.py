@@ -16,6 +16,10 @@ from app_v2.routers.progress import router as progress_router
 from app_v2.routers.media import router as media_router
 from app_v2.routers.organization import router as organization_router
 from app_v2.routers.hub import router as hub_router
+from app_v2.routers.dashboard import router as dashboard_router
+from app_v2.routers.admin import router as admin_router
+from app_v2.routers.learning import router as learning_router
+from app_v2.routers.profile import router as profile_router
 
 __all__ = [
     "auth_router",
@@ -30,4 +34,8 @@ __all__ = [
     "media_router",
     "organization_router",
     "hub_router",
+    "dashboard_router",
+    "admin_router",
+    "learning_router",
+    "profile_router",
 ]

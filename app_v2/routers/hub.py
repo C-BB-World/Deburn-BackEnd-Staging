@@ -85,18 +85,124 @@ async def add_hub_admin(
     return HubAdminResponse(**admin)
 
 
-@router.delete("/admins", response_model=HubAdminResponse)
+@router.delete("/admins/{email}")
 async def remove_hub_admin(
-    request: RemoveHubAdminRequest,
+    email: str,
     user: Annotated[dict, Depends(require_hub_admin)],
     admin_service: Annotated[HubAdminService, Depends(get_hub_admin_service)],
 ):
     """Remove (soft delete) a hub admin."""
-    admin = await admin_service.remove_admin(
-        email=request.email,
+    from common.utils import success_response
+
+    await admin_service.remove_admin(
+        email=email,
         removed_by=user.get("email", "")
     )
-    return HubAdminResponse(**admin)
+    return success_response(None)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Organization Endpoints
+# ─────────────────────────────────────────────────────────────────
+
+@router.get("/organizations")
+async def get_organizations(
+    user: Annotated[dict, Depends(require_hub_admin)],
+):
+    """Get all organizations."""
+    from common.utils import success_response
+    from app_v2.dependencies import get_organization_service
+
+    org_service = get_organization_service()
+    organizations = await org_service.get_all_organizations()
+
+    return success_response({
+        "organizations": [
+            {
+                "id": str(org["_id"]),
+                "name": org.get("name"),
+                "domain": org.get("domain"),
+                "memberCount": org.get("memberCount", 0),
+            }
+            for org in organizations
+        ]
+    })
+
+
+@router.post("/organizations")
+async def create_organization(
+    request: dict,
+    user: Annotated[dict, Depends(require_hub_admin)],
+):
+    """Create a new organization."""
+    from common.utils import success_response
+    from app_v2.dependencies import get_organization_service
+
+    org_service = get_organization_service()
+    org = await org_service.create_organization(
+        name=request.get("name"),
+        domain=request.get("domain")
+    )
+
+    return success_response({
+        "organization": {
+            "id": str(org["_id"]),
+            "name": org.get("name"),
+            "domain": org.get("domain"),
+            "memberCount": 0,
+        }
+    })
+
+
+# ─────────────────────────────────────────────────────────────────
+# Org Admin Endpoints
+# ─────────────────────────────────────────────────────────────────
+
+@router.get("/org-admins")
+async def get_org_admins(
+    user: Annotated[dict, Depends(require_hub_admin)],
+):
+    """Get all organization admins."""
+    from common.utils import success_response
+    from app_v2.dependencies import get_organization_service
+
+    org_service = get_organization_service()
+    admins = await org_service.get_org_admins()
+
+    return success_response({"admins": admins})
+
+
+@router.post("/org-admins")
+async def add_org_admin(
+    request: dict,
+    user: Annotated[dict, Depends(require_hub_admin)],
+):
+    """Add an organization admin."""
+    from common.utils import success_response
+    from app_v2.dependencies import get_organization_service
+
+    org_service = get_organization_service()
+    await org_service.add_org_admin(
+        email=request.get("email"),
+        organization_id=request.get("organizationId")
+    )
+
+    return success_response(None)
+
+
+@router.delete("/org-admins/{membership_id}")
+async def remove_org_admin(
+    membership_id: str,
+    user: Annotated[dict, Depends(require_hub_admin)],
+):
+    """Remove an organization admin membership."""
+    from common.utils import success_response
+    from app_v2.dependencies import get_organization_service
+
+    org_service = get_organization_service()
+    await org_service.remove_org_admin(membership_id)
+
+    return success_response(None)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -282,6 +388,7 @@ async def update_exercises(
     return {"success": True}
 
 
+@router.get("/settings/coach", response_model=CoachSettingsResponse)
 @router.get("/coach/settings", response_model=CoachSettingsResponse)
 async def get_coach_settings(
     user: Annotated[dict, Depends(require_hub_admin)],
@@ -292,6 +399,7 @@ async def get_coach_settings(
     return CoachSettingsResponse(**settings)
 
 
+@router.put("/settings/coach", response_model=CoachSettingsResponse)
 @router.put("/coach/settings", response_model=CoachSettingsResponse)
 async def update_coach_settings(
     request: UpdateCoachSettingsRequest,
@@ -334,18 +442,60 @@ async def get_compliance_stats(
     return ComplianceStatsResponse(**stats)
 
 
+@router.get("/compliance/user/{email}", response_model=UserComplianceResponse)
+async def get_user_compliance(
+    email: str,
+    user: Annotated[dict, Depends(require_hub_admin)],
+    compliance_service: Annotated[ComplianceService, Depends(get_compliance_service)],
+):
+    """Get user compliance data by email."""
+    data = await compliance_service.get_user_compliance_data(email)
+    if not data:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserComplianceResponse(**data)
+
+
 @router.post("/compliance/lookup", response_model=UserComplianceResponse)
 async def lookup_user(
     request: LookupUserRequest,
     user: Annotated[dict, Depends(require_hub_admin)],
     compliance_service: Annotated[ComplianceService, Depends(get_compliance_service)],
 ):
-    """Look up user by email for compliance review."""
+    """Look up user by email for compliance review (legacy)."""
     data = await compliance_service.get_user_compliance_data(request.email)
     if not data:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="User not found")
     return UserComplianceResponse(**data)
+
+
+@router.post("/compliance/export/{user_id}")
+async def export_user_data_by_id(
+    user_id: str,
+    user: Annotated[dict, Depends(require_hub_admin)],
+    compliance_service: Annotated[ComplianceService, Depends(get_compliance_service)],
+):
+    """Export user data by user ID (GDPR Article 20)."""
+    data = await compliance_service.export_user_data(
+        user_id=user_id,
+        exported_by=user.get("email", "")
+    )
+    return data
+
+
+@router.post("/compliance/delete/{user_id}")
+async def delete_user_data_by_id(
+    user_id: str,
+    user: Annotated[dict, Depends(require_hub_admin)],
+    compliance_service: Annotated[ComplianceService, Depends(get_compliance_service)],
+):
+    """Delete user data by user ID (GDPR Article 17)."""
+    result = await compliance_service.delete_user_account(
+        user_id=user_id,
+        deleted_by=user.get("email", "")
+    )
+    return result
 
 
 @router.post("/compliance/export")

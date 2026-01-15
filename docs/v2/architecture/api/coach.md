@@ -18,6 +18,16 @@ Streams AI coach response using Server-Sent Events.
 }
 ```
 
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+{
+  message: string,              // User's message to the coach
+  conversationId: string | null, // Existing conversation ID or null for new
+  context: object,              // Additional context (default: {})
+  language: string              // Language code: "en" | "sv" (default: "en")
+}
+```
+
 **Response (SSE Stream):**
 ```
 data: {"type":"metadata","content":{"conversationId":"conv_123abc"}}
@@ -47,6 +57,16 @@ Non-streaming message endpoint (alternative to stream).
 }
 ```
 
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+{
+  message: string,              // User's message to the coach
+  conversationId: string | null, // Existing conversation ID or null for new
+  context: object,              // Additional context (default: {})
+  language: string              // Language code: "en" | "sv" (default: "en")
+}
+```
+
 **Response:**
 ```json
 {
@@ -72,6 +92,18 @@ Fetches conversation starter suggestions.
 - `energy` (number): Current energy (if includeWellbeing)
 - `stress` (number): Current stress (if includeWellbeing)
 
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+// Query parameters
+{
+  language: string,           // "en" | "sv" (default: "en")
+  includeWellbeing?: "true",  // String "true" if wellbeing provided
+  mood?: number,              // 1-5 scale (default: 3)
+  energy?: number,            // 1-10 scale (default: 5)
+  stress?: number             // 1-10 scale (default: 5)
+}
+```
+
 **Response:**
 ```json
 {
@@ -90,3 +122,43 @@ Fetches conversation starter suggestions.
   }
 }
 ```
+
+---
+
+## GET /api/coach/history
+
+Fetches conversation history.
+
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+// Query parameters
+{
+  conversationId: string,  // The conversation ID
+  limit: number            // Max messages to return (default: 50)
+}
+```
+
+---
+
+## POST /api/coach/feedback
+
+Submits feedback for a message.
+
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+{
+  messageId: string,   // ID of the message being rated
+  rating: number,      // Rating value (e.g., 1-5)
+  feedback: string,    // Optional feedback text (default: "")
+  category: string     // Feedback category (default: "coaching_quality")
+}
+```
+
+---
+
+## GET /api/coach/exercises
+
+Fetches available exercises.
+
+**Frontend Input** (src/features/coach/coachApi.js):
+No request body.

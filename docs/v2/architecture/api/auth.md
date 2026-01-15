@@ -17,6 +17,15 @@ Authenticates user and creates session.
 }
 ```
 
+**Frontend Input** (src/features/auth/authApi.js → src/pages/auth/Login.jsx):
+```typescript
+{
+  email: string,        // User's email address
+  password: string,     // User's password
+  rememberMe: boolean   // Extend session duration (default: false)
+}
+```
+
 **Response:**
 ```json
 {
@@ -56,6 +65,25 @@ Creates new user account.
 }
 ```
 
+**Frontend Input** (src/features/auth/authApi.js → src/pages/auth/Register.jsx):
+```typescript
+{
+  firstName: string,       // User's first name
+  lastName: string,        // User's last name
+  email: string,           // User's email address
+  password: string,        // User's password
+  passwordConfirm: string, // Password confirmation
+  organization: string,    // Organization/company name
+  country: string,         // ISO 3166-1 alpha-2 country code (e.g., "SE", "US")
+  consents: {
+    termsOfService: boolean,  // Accepted terms of service
+    privacyPolicy: boolean,   // Accepted privacy policy
+    dataProcessing: boolean,  // Consent to data processing
+    marketing: boolean        // Consent to marketing emails (optional)
+  }
+}
+```
+
 **Response:**
 ```json
 {
@@ -74,6 +102,13 @@ Initiates password reset flow.
 ```json
 {
   "email": "user@example.com"
+}
+```
+
+**Frontend Input** (src/pages/auth/ForgotPassword.jsx):
+```typescript
+{
+  email: string  // User's email address
 }
 ```
 
@@ -97,6 +132,16 @@ Resets password with token.
   "password": "newsecurepassword"
 }
 ```
+
+**Frontend Input** (src/pages/auth/ResetPassword.jsx):
+```typescript
+{
+  token: string,    // Reset token from email link
+  password: string  // New password
+}
+```
+
+**Note:** authApi.js also supports `passwordConfirm: string` field but ResetPassword.jsx does not send it.
 
 **Response:**
 ```json
@@ -122,6 +167,13 @@ Verifies email with token.
 }
 ```
 
+**Frontend Input** (src/pages/auth/VerifyEmail.jsx):
+```typescript
+{
+  token: string  // Verification token from email link
+}
+```
+
 **Response:**
 ```json
 {
@@ -142,6 +194,13 @@ Resends verification email.
 }
 ```
 
+**Frontend Input** (src/pages/auth/VerifyEmail.jsx):
+```typescript
+{
+  email: string  // User's email address
+}
+```
+
 **Response:**
 ```json
 {
@@ -157,9 +216,97 @@ Logs out user and destroys session.
 
 **Request:** None
 
+**Frontend Input** (src/features/auth/authApi.js):
+```typescript
+{}  // Empty object
+```
+
 **Response:**
 ```json
 {
   "success": true
 }
+```
+
+---
+
+## GET /api/auth/session
+
+Gets current session info.
+
+**Frontend Input** (src/features/auth/authApi.js):
+No request body.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": { ... }
+  }
+}
+```
+
+---
+
+## GET /api/auth/sessions
+
+Gets all active sessions for the user.
+
+**Frontend Input** (src/features/auth/authApi.js):
+No request body.
+
+---
+
+## DELETE /api/auth/sessions/:sessionId
+
+Revokes a specific session.
+
+**Frontend Input** (src/features/auth/authApi.js):
+```typescript
+// Path parameter
+sessionId: string  // Session ID to revoke
+```
+No request body.
+
+---
+
+## DELETE /api/auth/sessions
+
+Revokes all other sessions.
+
+**Frontend Input** (src/features/auth/authApi.js):
+No request body.
+
+---
+
+## GET /api/auth/data-export
+
+Exports user data (GDPR).
+
+**Frontend Input** (src/features/auth/authApi.js):
+No request body.
+
+---
+
+## POST /api/auth/delete-account
+
+Requests account deletion (GDPR).
+
+**Frontend Input** (src/features/auth/authApi.js):
+```typescript
+{
+  reason: string | null  // Optional reason for deletion
+}
+```
+
+---
+
+## POST /api/auth/refresh
+
+Refreshes access token.
+
+**Frontend Input** (src/features/auth/authApi.js):
+```typescript
+{}  // Empty object
 ```

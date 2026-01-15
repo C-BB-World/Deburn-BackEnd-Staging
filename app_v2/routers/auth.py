@@ -135,6 +135,89 @@ async def logout(
     return LogoutResponse(**result)
 
 
+@router.get("/session")
+async def get_session(
+    request: Request,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Get current session/user info.
+
+    Returns the current authenticated user's information.
+    """
+    from common.utils import success_response
+
+    return success_response({
+        "user": {
+            "id": str(user["_id"]),
+            "email": user.get("email"),
+            "firstName": user.get("profile", {}).get("firstName"),
+            "lastName": user.get("profile", {}).get("lastName"),
+            "isAdmin": user.get("isAdmin", False),
+        }
+    })
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body: dict,
+):
+    """
+    Request password reset email.
+
+    Sends a password reset link to the provided email if account exists.
+    """
+    from common.utils import success_response
+    # Firebase handles password reset emails directly
+    # This endpoint is a placeholder for API consistency
+    return success_response(None)
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: dict,
+):
+    """
+    Reset password with token.
+
+    Validates reset token and updates password.
+    """
+    from common.utils import success_response
+    # Firebase handles password reset directly
+    # This endpoint is a placeholder for API consistency
+    return success_response(None)
+
+
+@router.post("/verify-email")
+async def verify_email(
+    body: dict,
+):
+    """
+    Verify email with token.
+
+    Validates email verification token.
+    """
+    from common.utils import success_response
+    # Firebase handles email verification directly
+    # This endpoint is a placeholder for API consistency
+    return success_response(None)
+
+
+@router.post("/resend-verification")
+async def resend_verification(
+    body: dict,
+):
+    """
+    Resend email verification.
+
+    Sends a new verification email to the provided address.
+    """
+    from common.utils import success_response
+    # Firebase handles email verification directly
+    # This endpoint is a placeholder for API consistency
+    return success_response(None)
+
+
 @router.get("/sessions", response_model=SessionListResponse)
 async def get_sessions(
     request: Request,

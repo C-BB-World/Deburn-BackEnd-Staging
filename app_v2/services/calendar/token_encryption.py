@@ -29,11 +29,17 @@ class TokenEncryptionService:
         Initialize TokenEncryptionService.
 
         Args:
-            encryption_key: 32-byte hex key for AES-256
+            encryption_key: 32-byte hex key for AES-256, or any string (will be hashed)
         """
-        key_bytes = bytes.fromhex(encryption_key)
-        if len(key_bytes) != 32:
-            raise ValueError("Encryption key must be 32 bytes (64 hex characters)")
+        try:
+            key_bytes = bytes.fromhex(encryption_key)
+            if len(key_bytes) != 32:
+                raise ValueError("Invalid hex key length")
+        except ValueError:
+            # Not a valid hex string - hash it to create a 32-byte key
+            key_bytes = hashlib.sha256(encryption_key.encode("utf-8")).digest()
+            logger.debug("Using hashed encryption key (non-hex key provided)")
+
         self._key = key_bytes
 
     def encrypt(self, plaintext: str) -> str:

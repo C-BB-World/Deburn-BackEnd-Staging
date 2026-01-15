@@ -19,6 +19,17 @@ Updates user profile information.
 }
 ```
 
+**Frontend Input** (src/pages/Profile.jsx):
+```typescript
+{
+  firstName: string,    // User's first name
+  lastName: string,     // User's last name
+  organization: string, // Organization/company name
+  role: string,         // Job title/role
+  bio: string           // Short biography
+}
+```
+
 **Response:**
 ```json
 {
@@ -37,6 +48,24 @@ Updates user profile information.
 }
 ```
 
+**Response Types:**
+```typescript
+{
+  success: boolean,
+  data: {
+    user: {
+      id: string,
+      firstName: string,
+      lastName: string,
+      email: string,
+      organization: string,
+      role: string,
+      bio: string
+    }
+  }
+}
+```
+
 ---
 
 ## POST /api/profile/avatar
@@ -46,12 +75,29 @@ Uploads user avatar image.
 **Request:** `multipart/form-data`
 - `avatar` (File): Image file (JPG/PNG, max 1MB)
 
+**Frontend Input** (src/pages/Profile.jsx):
+```typescript
+FormData {
+  avatar: File  // Image file (JPEG or PNG only, validated client-side)
+}
+```
+
 **Response:**
 ```json
 {
   "success": true,
   "data": {
     "avatarUrl": "/uploads/avatars/usr_123.jpg"
+  }
+}
+```
+
+**Response Types:**
+```typescript
+{
+  success: boolean,
+  data: {
+    avatarUrl: string  // URL to uploaded avatar
   }
 }
 ```
@@ -66,6 +112,13 @@ Removes user avatar.
 ```json
 {
   "remove": true
+}
+```
+
+**Frontend Input** (src/pages/Profile.jsx):
+```typescript
+{
+  remove: boolean  // Must be true to remove avatar
 }
 ```
 

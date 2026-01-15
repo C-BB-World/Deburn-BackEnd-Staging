@@ -415,7 +415,7 @@ def init_all_services(
     init_media_services(db)
     init_organization_services(db)
 
-    if hub_db:
+    if hub_db is not None:
         init_hub_services(hub_db, db)
 
 
@@ -592,6 +592,10 @@ def get_circles_availability_service() -> AvailabilityService:
     return _circles_availability_service
 
 
+# Alias for backwards compatibility
+get_availability_service = get_circles_availability_service
+
+
 # ─────────────────────────────────────────────────────────────────
 # Calendar getters
 # ─────────────────────────────────────────────────────────────────
@@ -711,6 +715,10 @@ def get_insight_engine() -> InsightEngine:
     if _insight_engine is None:
         raise RuntimeError("Progress services not initialized.")
     return _insight_engine
+
+
+# Alias for backwards compatibility
+get_insight_service = get_progress_insight_service
 
 
 # ─────────────────────────────────────────────────────────────────

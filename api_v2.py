@@ -30,6 +30,10 @@ from app_v2.routers import (
     media_router,
     organization_router,
     hub_router,
+    dashboard_router,
+    admin_router,
+    learning_router,
+    profile_router,
 )
 
 # Import service initialization
@@ -131,7 +135,7 @@ app.add_middleware(
 # =============================================================================
 # Include Routers (all under /api/v2 prefix)
 # =============================================================================
-API_PREFIX = "/api/v2"
+API_PREFIX = "/api"
 
 app.include_router(auth_router, prefix=API_PREFIX, tags=["Authentication"])
 app.include_router(user_router, prefix=API_PREFIX, tags=["User"])
@@ -145,6 +149,10 @@ app.include_router(progress_router, prefix=API_PREFIX, tags=["Progress"])
 app.include_router(media_router, prefix=API_PREFIX, tags=["Media"])
 app.include_router(organization_router, prefix=API_PREFIX, tags=["Organizations"])
 app.include_router(hub_router, prefix=API_PREFIX, tags=["Hub"])
+app.include_router(dashboard_router, prefix=API_PREFIX, tags=["Dashboard"])
+app.include_router(admin_router, prefix=API_PREFIX, tags=["Admin"])
+app.include_router(learning_router, prefix=API_PREFIX, tags=["Learning"])
+app.include_router(profile_router, prefix=API_PREFIX, tags=["Profile"])
 
 
 # =============================================================================

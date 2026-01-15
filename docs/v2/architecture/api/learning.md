@@ -8,6 +8,9 @@ Endpoints for learning modules and content management.
 
 Fetches list of available learning modules with progress.
 
+**Frontend Input** (src/pages/Learning.jsx):
+No request body.
+
 **Response:**
 ```json
 {
@@ -33,6 +36,24 @@ Fetches list of available learning modules with progress.
         "progress": 0
       }
     ]
+  }
+}
+```
+
+**Response Types:**
+```typescript
+{
+  success: boolean,
+  data: {
+    modules: Array<{
+      id: string,              // Module ID
+      title: string,           // Module title
+      description: string,     // Module description
+      type: string,            // "video" | "audio" | "article" | "exercise"
+      duration: number,        // Duration in minutes
+      thumbnail: string | null, // Thumbnail URL or null
+      progress: number         // Progress percentage (0-100)
+    }>
   }
 }
 ```

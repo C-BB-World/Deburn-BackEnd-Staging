@@ -93,6 +93,13 @@ class MongoDB:
         """Get the current database name."""
         return self._database_name
 
+    @property
+    def db(self):
+        """Get the underlying Motor database instance."""
+        if not self._client or not self._database_name:
+            raise RuntimeError("Database not connected")
+        return self._client[self._database_name]
+
     def get_collection(self, name: str):
         """
         Get a raw Motor collection for direct access.

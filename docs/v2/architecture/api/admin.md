@@ -8,6 +8,9 @@ Admin endpoints for platform statistics and management. Requires admin role.
 
 Fetches platform-wide statistics.
 
+**Frontend Input** (src/pages/Admin.jsx):
+No request body.
+
 **Response:**
 ```json
 {
@@ -17,6 +20,19 @@ Fetches platform-wide statistics.
     "activeUsers": 87,
     "totalCheckins": 4523,
     "totalSessions": 892
+  }
+}
+```
+
+**Response Types:**
+```typescript
+{
+  success: boolean,
+  data: {
+    totalUsers: number,      // Total registered users
+    activeUsers: number,     // Users active in last 30 days
+    totalCheckins: number,   // Total check-ins submitted
+    totalSessions: number    // Total coaching sessions
   }
 }
 ```
