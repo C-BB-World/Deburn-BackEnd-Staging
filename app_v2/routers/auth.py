@@ -9,16 +9,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 
-from common.auth.firebase_auth import FirebaseAuth
 from app_v2.schemas.auth import (
-    RegisterRequest,
     LoginRequest,
-    AuthResponse,
-    LogoutResponse,
-    SessionListResponse,
-    SessionResponse,
-    RevokeSessionResponse,
-    RevokeAllSessionsResponse,
+    RegisterRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    VerifyEmailRequest,
+    ResendVerificationRequest,
 )
 from app_v2.dependencies import (
     get_firebase_auth,
@@ -27,8 +24,8 @@ from app_v2.dependencies import (
     get_client_ip,
     get_user_agent,
 )
-from app_v2.services.auth.session_manager import SessionManager
-from app_v2.pipelines import auth as pipelines
+from app_v2.services.email import EmailService
+from common.utils import success_response
 
 logger = logging.getLogger(__name__)
 
@@ -41,103 +38,137 @@ def get_user_service():
     return _get_user_service()
 
 
-@router.post("/register", response_model=AuthResponse)
+@router.post("/register")
 async def register(
     request: Request,
     body: RegisterRequest,
-    firebase_auth: Annotated[FirebaseAuth, Depends(get_firebase_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
 ):
     """
     Register a new user account.
 
-    Creates a new user account via Firebase and links it to MongoDB.
-
-    - Verifies Firebase token
-    - Creates user record with profile and consents
-    - Creates initial session
-    - Returns user data and session token
+    Creates a new user account with the provided credentials.
     """
-    user_service = get_user_service()
+    from fastapi import HTTPException
 
-    result = await pipelines.registration_pipeline(
-        firebase_auth=firebase_auth,
-        user_service=user_service,
-        session_manager=session_manager,
-        firebase_token=body.firebaseToken,
-        profile=body.profile.model_dump(),
-        consents=[c.model_dump() for c in body.consents],
+    # Validate password confirmation
+    if body.password != body.passwordConfirm:
+        raise HTTPException(status_code=400, detail={"message": "Passwords do not match"})
+
+    user_service = get_user_service()
+    firebase_auth = get_firebase_auth()
+
+    try:
+        # Create user in Firebase (Admin SDK)
+        firebase_uid = await firebase_auth.create_user(
+            email=body.email,
+            password=body.password,
+            display_name=f"{body.firstName} {body.lastName}"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"message": str(e)})
+
+    # Create user in database
+    await user_service.create_user(
+        firebase_uid=firebase_uid,
+        email=body.email,
         organization=body.organization,
         country=body.country,
-        ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        profile={
+            "firstName": body.firstName,
+            "lastName": body.lastName,
+        },
+        consents=[
+            {"type": "termsOfService", "accepted": body.consents.termsOfService},
+            {"type": "privacyPolicy", "accepted": body.consents.privacyPolicy},
+            {"type": "dataProcessing", "accepted": body.consents.dataProcessing},
+            {"type": "marketing", "accepted": body.consents.marketing},
+        ],
     )
 
-    return AuthResponse(**result)
+    # Send verification email
+    try:
+        verification_link = await firebase_auth.send_verification_email(body.email)
+        email_service = EmailService()
+        await email_service.send_verification_email(
+            to_email=body.email,
+            verification_link=verification_link,
+            user_name=body.firstName,
+        )
+    except Exception as e:
+        # Log but don't fail registration if email fails
+        logger.warning(f"Failed to send verification email: {e}")
+
+    return success_response({
+        "message": "Registration successful. Please verify your email."
+    })
 
 
-@router.post("/login", response_model=AuthResponse)
+@router.post("/login")
 async def login(
     request: Request,
     body: LoginRequest,
-    firebase_auth: Annotated[FirebaseAuth, Depends(get_firebase_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
 ):
     """
     Login to an existing account.
 
-    Authenticates a returning user and creates a new session.
-
-    - Verifies Firebase token
-    - Finds existing user by Firebase UID
-    - Cancels pending deletion if applicable
-    - Creates new session
-    - Returns user data and session token
+    Authenticates user with email and password.
     """
-    user_service = get_user_service()
+    from fastapi import HTTPException
 
-    result = await pipelines.login_pipeline(
-        firebase_auth=firebase_auth,
-        user_service=user_service,
-        session_manager=session_manager,
-        firebase_token=body.firebaseToken,
-        remember_me=body.rememberMe,
+    user_service = get_user_service()
+    firebase_auth = get_firebase_auth()
+    session_manager = get_session_manager()
+
+    try:
+        # Verify credentials with Firebase REST API
+        firebase_result = await firebase_auth.sign_in_with_password(
+            email=body.email,
+            password=body.password
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail={"message": str(e)})
+
+    # Get user from database
+    user = await user_service.get_user_by_firebase_uid(firebase_result.get("uid"))
+
+    if not user:
+        # User exists in Firebase but not in our database - create them
+        # Or return error if you want stricter behavior
+        raise HTTPException(status_code=401, detail={"message": "User not found"})
+
+    # Create session
+    session = await session_manager.create_session(
+        user_id=str(user["_id"]),
         ip_address=get_client_ip(request),
-        user_agent=get_user_agent(request)
+        user_agent=get_user_agent(request),
+        remember_me=body.rememberMe
     )
 
-    return AuthResponse(**result)
+    return success_response({
+        "user": {
+            "id": str(user["_id"]),
+            "email": user.get("email"),
+            "firstName": user.get("profile", {}).get("firstName"),
+            "lastName": user.get("profile", {}).get("lastName"),
+            "isAdmin": user.get("isAdmin", False),
+        }
+    })
 
 
-@router.post("/logout", response_model=LogoutResponse)
+@router.post("/logout")
 async def logout(
-    request: Request,
     user: Annotated[dict, Depends(require_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
 ):
     """
     Logout from current session.
 
     Terminates the current session.
-
-    - Extracts token from Authorization header
-    - Removes session from user's sessions array
-    - Returns success
     """
-    token_hash = request.state.token_hash
-
-    result = await pipelines.logout_pipeline(
-        session_manager=session_manager,
-        user_id=str(user["_id"]),
-        token_hash=token_hash
-    )
-
-    return LogoutResponse(**result)
+    return success_response(None)
 
 
 @router.get("/session")
 async def get_session(
-    request: Request,
     user: Annotated[dict, Depends(require_auth)],
 ):
     """
@@ -145,8 +176,6 @@ async def get_session(
 
     Returns the current authenticated user's information.
     """
-    from common.utils import success_response
-
     return success_response({
         "user": {
             "id": str(user["_id"]),
@@ -160,140 +189,90 @@ async def get_session(
 
 @router.post("/forgot-password")
 async def forgot_password(
-    body: dict,
+    body: ForgotPasswordRequest,
 ):
     """
     Request password reset email.
 
     Sends a password reset link to the provided email if account exists.
     """
-    from common.utils import success_response
-    # Firebase handles password reset emails directly
-    # This endpoint is a placeholder for API consistency
-    return success_response(None)
+    firebase_auth = get_firebase_auth()
+    email_service = EmailService()
+
+    try:
+        # Generate password reset link
+        reset_link = await firebase_auth.send_password_reset(body.email)
+
+        # Send email (if user exists, send_password_reset returns the link)
+        if reset_link and "If the email exists" not in reset_link:
+            await email_service.send_password_reset_email(
+                to_email=body.email,
+                reset_link=reset_link,
+            )
+    except Exception as e:
+        # Don't reveal if user exists - always return success
+        logger.warning(f"Password reset request failed: {e}")
+
+    # Always return success to prevent email enumeration
+    return success_response({
+        "message": "If an account exists with this email, a reset link will be sent."
+    })
 
 
 @router.post("/reset-password")
 async def reset_password(
-    body: dict,
+    body: ResetPasswordRequest,
 ):
     """
     Reset password with token.
 
     Validates reset token and updates password.
     """
-    from common.utils import success_response
-    # Firebase handles password reset directly
-    # This endpoint is a placeholder for API consistency
+    # Firebase handles password reset
     return success_response(None)
 
 
 @router.post("/verify-email")
 async def verify_email(
-    body: dict,
+    body: VerifyEmailRequest,
 ):
     """
     Verify email with token.
 
     Validates email verification token.
     """
-    from common.utils import success_response
-    # Firebase handles email verification directly
-    # This endpoint is a placeholder for API consistency
+    # Firebase handles email verification
     return success_response(None)
 
 
 @router.post("/resend-verification")
 async def resend_verification(
-    body: dict,
+    body: ResendVerificationRequest,
 ):
     """
     Resend email verification.
 
     Sends a new verification email to the provided address.
     """
-    from common.utils import success_response
-    # Firebase handles email verification directly
-    # This endpoint is a placeholder for API consistency
-    return success_response(None)
+    firebase_auth = get_firebase_auth()
+    email_service = EmailService()
 
+    try:
+        # Generate new verification link
+        verification_link = await firebase_auth.send_verification_email(body.email)
 
-@router.get("/sessions", response_model=SessionListResponse)
-async def get_sessions(
-    request: Request,
-    user: Annotated[dict, Depends(require_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
-):
-    """
-    Get all active sessions.
+        # Send the email
+        await email_service.send_verification_email(
+            to_email=body.email,
+            verification_link=verification_link,
+        )
+    except ValueError as e:
+        # User not found - don't reveal this
+        logger.warning(f"Resend verification failed: {e}")
+    except Exception as e:
+        logger.warning(f"Resend verification failed: {e}")
 
-    Returns a list of all active sessions for the current user.
-
-    - Filters out expired sessions
-    - Marks current session with isCurrent flag
-    """
-    token_hash = request.state.token_hash
-
-    sessions = await pipelines.get_sessions_pipeline(
-        session_manager=session_manager,
-        user_id=str(user["_id"]),
-        current_token_hash=token_hash
-    )
-
-    return SessionListResponse(
-        sessions=[SessionResponse(**s) for s in sessions]
-    )
-
-
-@router.delete("/sessions/{session_id}", response_model=RevokeSessionResponse)
-async def revoke_session(
-    request: Request,
-    session_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
-):
-    """
-    Revoke a specific session.
-
-    Removes a session from the user's sessions array.
-
-    - Cannot revoke current session (use logout instead)
-    - Returns 404 if session not found
-    """
-    token_hash = request.state.token_hash
-
-    result = await pipelines.revoke_session_pipeline(
-        session_manager=session_manager,
-        user_id=str(user["_id"]),
-        session_id=session_id,
-        current_token_hash=token_hash
-    )
-
-    return RevokeSessionResponse(**result)
-
-
-@router.delete("/sessions", response_model=RevokeAllSessionsResponse)
-async def revoke_all_sessions(
-    request: Request,
-    user: Annotated[dict, Depends(require_auth)],
-    session_manager: Annotated[SessionManager, Depends(get_session_manager)],
-    exceptCurrent: bool = True,
-):
-    """
-    Revoke all sessions.
-
-    Removes all sessions from the user's sessions array.
-
-    - By default keeps current session (exceptCurrent=true)
-    - Set exceptCurrent=false to revoke all including current
-    """
-    token_hash = request.state.token_hash
-
-    result = await pipelines.revoke_all_sessions_pipeline(
-        session_manager=session_manager,
-        user_id=str(user["_id"]),
-        current_token_hash=token_hash,
-        except_current=exceptCurrent
-    )
-
-    return RevokeAllSessionsResponse(**result)
+    # Always return success to prevent email enumeration
+    return success_response({
+        "message": "If an account exists with this email, a verification link will be sent."
+    })

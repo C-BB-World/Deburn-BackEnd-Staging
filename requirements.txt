@@ -57,6 +57,9 @@ aiofiles>=23.2.0
 # Email - SMTP
 aiosmtplib>=3.0.0
 
+# Email - Resend API (primary email provider)
+resend>=2.0.0
+
 # =============================================================================
 # Optional: Additional Features
 # =============================================================================

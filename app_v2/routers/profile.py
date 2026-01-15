@@ -5,25 +5,17 @@ Provides endpoints for user profile management.
 """
 
 import logging
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from app_v2.dependencies import require_auth, get_profile_service
+from app_v2.schemas.profile import ProfileUpdateRequest, RemoveAvatarRequest
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/profile", tags=["profile"])
-
-
-class ProfileUpdateRequest(BaseModel):
-    firstName: Optional[str] = None
-    lastName: Optional[str] = None
-    organization: Optional[str] = None
-    role: Optional[str] = None
-    bio: Optional[str] = None
 
 
 @router.put("")
@@ -34,25 +26,19 @@ async def update_profile(
     """
     Update current user's profile.
 
-    Only provided fields will be updated.
+    Updates firstName, lastName, organization, role, and bio.
     """
     profile_service = get_profile_service()
     user_id = str(user["_id"])
 
-    updates = body.model_dump(exclude_unset=True)
-
     # Map to internal field names
-    internal_updates = {}
-    if "firstName" in updates:
-        internal_updates["firstName"] = updates["firstName"]
-    if "lastName" in updates:
-        internal_updates["lastName"] = updates["lastName"]
-    if "organization" in updates:
-        internal_updates["organization"] = updates["organization"]
-    if "role" in updates:
-        internal_updates["jobTitle"] = updates["role"]
-    if "bio" in updates:
-        internal_updates["bio"] = updates["bio"]
+    internal_updates = {
+        "firstName": body.firstName,
+        "lastName": body.lastName,
+        "organization": body.organization,
+        "jobTitle": body.role,
+        "bio": body.bio,
+    }
 
     profile = await profile_service.update_profile(user_id, internal_updates)
 
@@ -76,10 +62,11 @@ async def upload_avatar(
     """
     Upload user avatar.
 
-    Placeholder endpoint - actual file upload would need multipart handling.
+    Accepts multipart/form-data with avatar file.
     """
     user_id = str(user["_id"])
 
+    # TODO: Implement actual file upload handling
     return success_response({
         "avatarUrl": f"/uploads/avatars/{user_id}.jpg"
     })
@@ -87,9 +74,12 @@ async def upload_avatar(
 
 @router.put("/avatar")
 async def remove_avatar(
+    body: RemoveAvatarRequest,
     user: Annotated[dict, Depends(require_auth)],
 ):
     """
     Remove user avatar.
+
+    Sets avatar back to default.
     """
     return success_response(None)

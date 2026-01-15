@@ -1,44 +1,18 @@
 """
 Pydantic models for Progress system request/response validation.
 
-Defines schemas for stats and insights.
+Matches the API documentation in docs/v2/architecture/api/progress.md
 """
 
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import List
 from pydantic import BaseModel
 
 
-class StatsResponse(BaseModel):
-    """User progress statistics."""
-    streak: int
-    checkins: int
-    lessons: int
-    sessions: int
+# =============================================================================
+# Response Schemas (used inside success_response data)
+# =============================================================================
 
-
-class InsightResponse(BaseModel):
-    """Insight in API responses."""
-    id: str
-    userId: str
-    type: str
-    trigger: str
+class Insight(BaseModel):
+    """Individual insight."""
     title: str
     description: str
-    metrics: Dict[str, Any] = {}
-    isRead: bool = False
-    expiresAt: Optional[datetime] = None
-    createdAt: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class InsightsListResponse(BaseModel):
-    """List of insights."""
-    insights: List[InsightResponse]
-
-
-class UnreadCountResponse(BaseModel):
-    """Unread insights count."""
-    count: int

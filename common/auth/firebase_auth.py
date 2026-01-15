@@ -13,9 +13,13 @@ Example:
     # Verify ID token from client
     claims = await auth.verify_token(id_token)
     print(claims["uid"])  # Firebase user ID
+
+    # Sign in with email/password (via REST API)
+    user = await auth.sign_in_with_password("user@example.com", "password123")
 """
 
 import os
+import httpx
 from typing import Dict, Any, Optional
 from common.auth.base import AuthProvider
 
@@ -72,11 +76,15 @@ class FirebaseAuth(AuthProvider):
     - Token verification
     """
 
+    # Firebase REST API base URL
+    FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
+
     def __init__(
         self,
         credentials_path: Optional[str] = None,
         credentials_dict: Optional[Dict[str, Any]] = None,
         project_id: Optional[str] = None,
+        api_key: Optional[str] = None,
     ):
         """
         Initialize Firebase auth provider.
@@ -85,6 +93,7 @@ class FirebaseAuth(AuthProvider):
             credentials_path: Path to service account JSON file
             credentials_dict: Service account credentials as dict (alternative to path)
             project_id: Firebase project ID (optional, can be inferred from credentials)
+            api_key: Firebase Web API Key (for REST API authentication)
         """
         try:
             import firebase_admin
@@ -94,6 +103,9 @@ class FirebaseAuth(AuthProvider):
                 "firebase-admin package is required for Firebase authentication. "
                 "Install with: pip install firebase-admin"
             )
+
+        # Get API key from parameter or environment
+        self._api_key = api_key or os.environ.get("FIREBASE_API_KEY")
 
         # Initialize Firebase app if not already done
         if not firebase_admin._apps:
@@ -145,18 +157,71 @@ class FirebaseAuth(AuthProvider):
         password: str,
     ) -> Dict[str, Any]:
         """
-        Verify credentials - not directly supported by Firebase Admin SDK.
+        Verify email/password credentials using Firebase REST API.
 
-        Firebase auth is designed for client-side password verification.
-        This method is included for interface compatibility but requires
-        client-side sign-in and token verification instead.
+        Returns user info and tokens if successful.
         """
-        # Firebase Admin SDK doesn't support direct password verification
-        # In production, clients sign in with Firebase client SDK and send ID token
-        raise NotImplementedError(
-            "Firebase Admin SDK doesn't support direct password verification. "
-            "Use client-side Firebase SDK for sign-in, then verify the ID token."
-        )
+        return await self.sign_in_with_password(email, password)
+
+    async def sign_in_with_password(
+        self,
+        email: str,
+        password: str,
+    ) -> Dict[str, Any]:
+        """
+        Sign in with email and password using Firebase REST API.
+
+        Args:
+            email: User's email address
+            password: User's password
+
+        Returns:
+            Dict containing uid, email, idToken, refreshToken, etc.
+
+        Raises:
+            ValueError: If credentials are invalid or API key is missing
+        """
+        if not self._api_key:
+            raise ValueError(
+                "Firebase API key is required for email/password authentication. "
+                "Set FIREBASE_API_KEY environment variable."
+            )
+
+        url = f"{self.FIREBASE_AUTH_URL}:signInWithPassword?key={self._api_key}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json={
+                    "email": email,
+                    "password": password,
+                    "returnSecureToken": True,
+                },
+            )
+
+            if response.status_code != 200:
+                error_data = response.json()
+                error_message = error_data.get("error", {}).get("message", "Unknown error")
+
+                if error_message in ["EMAIL_NOT_FOUND", "INVALID_PASSWORD", "INVALID_LOGIN_CREDENTIALS"]:
+                    raise ValueError("Invalid email or password")
+                elif error_message == "USER_DISABLED":
+                    raise ValueError("Account has been disabled")
+                elif error_message == "TOO_MANY_ATTEMPTS_TRY_LATER":
+                    raise ValueError("Too many failed attempts. Please try again later.")
+                else:
+                    raise ValueError(f"Authentication failed: {error_message}")
+
+            data = response.json()
+
+            return {
+                "uid": data.get("localId"),
+                "email": data.get("email"),
+                "displayName": data.get("displayName"),
+                "idToken": data.get("idToken"),
+                "refreshToken": data.get("refreshToken"),
+                "expiresIn": data.get("expiresIn"),
+            }
 
     async def create_token(
         self,
