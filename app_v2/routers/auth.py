@@ -78,10 +78,10 @@ async def register(
             "lastName": body.lastName,
         },
         consents=[
-            {"type": "termsOfService", "accepted": body.consents.termsOfService},
-            {"type": "privacyPolicy", "accepted": body.consents.privacyPolicy},
-            {"type": "dataProcessing", "accepted": body.consents.dataProcessing},
-            {"type": "marketing", "accepted": body.consents.marketing},
+            {"type": "termsOfService", "accepted": body.consents.termsOfService, "version": "1.0"},
+            {"type": "privacyPolicy", "accepted": body.consents.privacyPolicy, "version": "1.0"},
+            {"type": "dataProcessing", "accepted": body.consents.dataProcessing, "version": "1.0"},
+            {"type": "marketing", "accepted": body.consents.marketing, "version": "1.0"},
         ],
     )
 

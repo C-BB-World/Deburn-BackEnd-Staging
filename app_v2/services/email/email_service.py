@@ -1,14 +1,17 @@
 """
 Email service for sending transactional emails.
 
-Supports Resend API for production and console logging for development.
+Supports SMTP, Resend API, and console logging modes.
 """
 
 import os
 import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from typing import Optional
 
 import httpx
+import aiosmtplib
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +22,8 @@ class EmailService:
 
     Modes:
         - console: Log emails to console (development)
-        - resend: Send via Resend API (production)
+        - smtp: Send via SMTP (e.g., Resend SMTP relay)
+        - resend: Send via Resend HTTP API
     """
 
     RESEND_API_URL = "https://api.resend.com/emails"
@@ -31,26 +35,55 @@ class EmailService:
         from_email: Optional[str] = None,
         from_name: str = "Deburn",
         app_url: Optional[str] = None,
+        smtp_host: Optional[str] = None,
+        smtp_port: Optional[int] = None,
+        smtp_user: Optional[str] = None,
+        smtp_password: Optional[str] = None,
     ):
         """
         Initialize email service.
 
         Args:
-            mode: "console" or "resend" (default from EMAIL_MODE env var)
+            mode: "console", "smtp", or "resend" (default from EMAIL_MODE env var)
             resend_api_key: Resend API key (default from RESEND_API_KEY env var)
             from_email: Sender email address
             from_name: Sender display name
             app_url: Base URL for links in emails
+            smtp_host: SMTP server host
+            smtp_port: SMTP server port
+            smtp_user: SMTP username
+            smtp_password: SMTP password
         """
         self._mode = mode or os.environ.get("EMAIL_MODE", "console")
-        self._resend_api_key = resend_api_key or os.environ.get("RESEND_API_KEY")
         self._from_email = from_email or os.environ.get("SMTP_FROM_EMAIL", "noreply@example.com")
         self._from_name = from_name or os.environ.get("SMTP_FROM_NAME", "Deburn")
         self._app_url = app_url or os.environ.get("APP_URL", "http://localhost:3000")
 
-        if self._mode == "resend" and not self._resend_api_key:
+        # Resend API key (can use SMTP_PASSWORD as fallback for existing configs)
+        self._resend_api_key = (
+            resend_api_key
+            or os.environ.get("RESEND_API_KEY")
+            or os.environ.get("SMTP_PASSWORD")
+        )
+
+        # SMTP settings (for actual SMTP mode)
+        self._smtp_host = smtp_host or os.environ.get("SMTP_HOST")
+        self._smtp_port = smtp_port or int(os.environ.get("SMTP_PORT", "465"))
+        self._smtp_user = smtp_user or os.environ.get("SMTP_USER", "resend")
+        self._smtp_password = smtp_password or os.environ.get("SMTP_PASSWORD")
+
+        # Normalize mode: if smtp mode with Resend API key, use Resend HTTP API
+        if self._mode == "smtp" and self._resend_api_key:
+            logger.info("EMAIL_MODE=smtp with Resend API key detected, using Resend HTTP API")
+            self._mode = "resend"
+        elif self._mode == "resend" and not self._resend_api_key:
             logger.warning("Resend API key not configured, falling back to console mode")
             self._mode = "console"
+        elif self._mode == "smtp" and not self._smtp_host:
+            logger.warning("SMTP host not configured, falling back to console mode")
+            self._mode = "console"
+
+        logger.info(f"Email service initialized in {self._mode} mode")
 
     async def send_verification_email(
         self,
@@ -215,6 +248,8 @@ The Deburn Team
         """
         if self._mode == "console":
             return self._send_console(to, subject, html, text)
+        elif self._mode == "smtp":
+            return await self._send_smtp(to, subject, html, text)
         elif self._mode == "resend":
             return await self._send_resend(to, subject, html, text)
         else:
@@ -242,6 +277,55 @@ The Deburn Team
             "mode": "console",
             "message": "Email logged to console",
         }
+
+    async def _send_smtp(
+        self,
+        to: str,
+        subject: str,
+        html: str,
+        text: str,
+    ) -> dict:
+        """Send email via SMTP."""
+        try:
+            # Create multipart message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = f"{self._from_name} <{self._from_email}>"
+            message["To"] = to
+
+            # Attach plain text and HTML parts
+            part1 = MIMEText(text, "plain")
+            part2 = MIMEText(html, "html")
+            message.attach(part1)
+            message.attach(part2)
+
+            # Determine if we should use SSL (port 465) or STARTTLS (port 587)
+            use_tls = self._smtp_port == 465
+
+            # Send via SMTP
+            await aiosmtplib.send(
+                message,
+                hostname=self._smtp_host,
+                port=self._smtp_port,
+                username=self._smtp_user,
+                password=self._smtp_password,
+                use_tls=use_tls,
+                start_tls=not use_tls,
+            )
+
+            logger.info(f"Email sent via SMTP to {to}")
+            return {
+                "success": True,
+                "mode": "smtp",
+                "message": "Email sent via SMTP",
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to send email via SMTP: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
     async def _send_resend(
         self,
