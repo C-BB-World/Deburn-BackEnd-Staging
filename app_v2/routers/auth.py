@@ -137,7 +137,7 @@ async def login(
         raise HTTPException(status_code=401, detail={"message": "User not found"})
 
     # Create session
-    session = await session_manager.create_session(
+    token, expires_at = await session_manager.create_session(
         user_id=str(user["_id"]),
         ip_address=get_client_ip(request),
         user_agent=get_user_agent(request),
@@ -151,7 +151,9 @@ async def login(
             "firstName": user.get("profile", {}).get("firstName"),
             "lastName": user.get("profile", {}).get("lastName"),
             "isAdmin": user.get("isAdmin", False),
-        }
+        },
+        "token": token,
+        "expiresAt": expires_at.isoformat()
     })
 
 
