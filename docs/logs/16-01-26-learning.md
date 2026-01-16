@@ -1,46 +1,77 @@
-# Session Log - 16/01/26
+# Session Log - 16/01/26 - Learning System
 
-## Learning Content Availability & Audio Streaming
+## Learning Content Router Fixes
 
-Updated the learning modules endpoint to support content availability detection and added audio streaming for the frontend player.
+Fixed the `/api/learning/content` endpoint not returning data.
 
----
+### Issues Found
 
-## Changes to `app_v2/routers/learning.py`
+1. **Route conflict**: Both `content_router` and `learning_router` defined `GET /api/learning/content`. Since `content_router` was registered first in `api_v2.py`, it shadowed `learning_router`.
 
-### Added `_compute_has_content()` function
+2. **ContentService collection name**: `ContentService` used `db["contentItems"]` (camelCase) but MongoDB collection is `contentitems` (lowercase).
 
-Determines if a content item has actual content available based on its type:
+3. **Wrong database**: `learning.py` was using main `deburn` database but content lives in `deburn-hub` database.
 
-- `text_article`: Returns `true` if `textContentEn` exists and is not empty
-- `audio_article` / `audio_exercise`: Returns `true` if `audioFileEn` exists (streaming URL set when audio uploaded)
-- `video_link`: Returns `true` if `videoUrl` exists
+### Fixes Applied
 
-This allows the frontend to grey out cards that don't have content yet.
+**`api_v2.py`**
+- Removed `content_router` import and registration
+- `learning_router` now handles all `/api/learning` endpoints
 
-### Updated `GET /api/learning/modules` response
+**`app_v2/services/content/content_service.py`**
+- Fixed collection name from `contentItems` to `contentitems`
 
-Added new fields to each module in the response:
+**`app_v2/routers/learning.py`**
+- Changed from `get_main_db()` to `get_hub_db()` to use `deburn-hub` database
+- Removed all comments
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `hasContent` | boolean | Whether content is available (false = grey out) |
-| `category` | string | Content category (featured, leadership, breath, meditation, etc.) |
-| `contentType` | string | Original content type (text_article, audio_article, etc.) |
-| `textContent` | string | Full article text (only for text_article with content) |
-| `audioUrl` | string | Streaming endpoint URL (only for audio types with content) |
-
-### Added `GET /api/learning/content/{content_id}/audio/{language}` endpoint
-
-New endpoint to stream audio content for the frontend player:
-
-- Accepts `content_id` and `language` ('en' or 'sv') parameters
-- Returns audio binary data with appropriate `Content-Type` header
-- Reuses `HubContentService.get_audio()` for data retrieval
-- Returns 404 if audio not found, 400 if invalid language
+**`app_v2/dependencies.py`**
+- Added `get_hub_db()` function to expose hub database
 
 ---
 
-## Data Source
+## API Endpoints
 
-Content is loaded from the `deburn-hub` database, `contentitems` collection (shared with deburnalpha).
+### GET /api/learning/content
+
+Returns list of published content items.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "...",
+        "contentType": "text_article",
+        "category": "leadership",
+        "titleEn": "...",
+        "titleSv": "...",
+        "lengthMinutes": 5,
+        "hasContent": true
+      }
+    ]
+  }
+}
+```
+
+### GET /api/learning/content/{content_id}/audio/{language}
+
+Streams audio binary data with Authorization header required.
+
+**Path Parameters:**
+- `content_id` - Content item ID
+- `language` - `en` or `sv`
+
+**Response:**
+- Binary audio data
+- `Content-Type: audio/mpeg`
+
+---
+
+## Database
+
+Content is loaded from `deburn-hub` database, `contentitems` collection.
+
+Audio data is stored as BSON Binary in `audioDataEn` and `audioDataSv` fields.

@@ -1,9 +1,3 @@
-"""
-FastAPI router for Learning endpoints.
-
-Provides endpoints for learning content and audio streaming.
-"""
-
 import logging
 from typing import Annotated
 
@@ -19,14 +13,6 @@ router = APIRouter(prefix="/learning", tags=["learning"])
 
 
 def _compute_has_content(item: dict) -> bool:
-    """
-    Determine if content item has actual content available.
-
-    Returns True if content exists based on content type:
-    - text_article: textContentEn is not empty
-    - audio_article/audio_exercise: audioFileEn exists
-    - video_link: videoUrl exists
-    """
     content_type = item.get("contentType", "")
 
     if content_type == "text_article":
@@ -44,24 +30,14 @@ def _compute_has_content(item: dict) -> bool:
 async def get_learning_content(
     user: Annotated[dict, Depends(require_auth)],
 ):
-    """
-    Get available learning content for the user.
-
-    Returns a list of content items matching deburnalpha structure.
-    """
     db = get_hub_db()
-    print(f"[DEBUG] Database name: {db.name}")
     collection = db["contentitems"]
-    print(f"[DEBUG] Collection: {collection.name}")
 
-    # Query published content, exclude binary audio data
     projection = {"audioDataEn": 0, "audioDataSv": 0}
     cursor = collection.find({"status": "published"}, projection)
     cursor = cursor.sort("sortOrder", 1)
     raw_items = await cursor.to_list(length=500)
-    print(f"[DEBUG] Found {len(raw_items)} items")
 
-    # Transform to API response format
     items = []
     for item in raw_items:
         content_item = {
@@ -81,7 +57,6 @@ async def get_learning_content(
             "videoAvailableInSv": item.get("videoAvailableInSv"),
             "purpose": item.get("purpose"),
             "sortOrder": item.get("sortOrder"),
-            # Computed field for frontend
             "hasContent": _compute_has_content(item),
         }
         items.append(content_item)
@@ -95,23 +70,12 @@ async def stream_audio(
     language: str,
     user: Annotated[dict, Depends(require_auth)],
 ):
-    """
-    Stream audio content for the frontend player.
-
-    Args:
-        content_id: Content item ID
-        language: 'en' or 'sv'
-
-    Returns:
-        Audio binary data with appropriate Content-Type header
-    """
     if language not in ("en", "sv"):
         raise HTTPException(status_code=400, detail="Language must be 'en' or 'sv'")
 
     db = get_hub_db()
     collection = db["contentitems"]
 
-    # Get audio data fields based on language
     lang_suffix = language.capitalize()
     data_field = f"audioData{lang_suffix}"
     mime_field = f"audioMimeType{lang_suffix}"
@@ -131,7 +95,7 @@ async def stream_audio(
         content=audio_data,
         media_type=mime_type,
         headers={
-            "Content-Disposition": f"inline; filename=audio.mp3",
+            "Content-Disposition": "inline; filename=audio.mp3",
             "Accept-Ranges": "bytes",
         }
     )
