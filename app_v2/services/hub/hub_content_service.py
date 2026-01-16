@@ -39,7 +39,7 @@ class HubContentService:
             hub_db: Hub MongoDB database connection
         """
         self._db = hub_db
-        self._content_collection = hub_db["contentItems"]
+        self._content_collection = hub_db["contentitems"]
 
     async def get_all(
         self,
@@ -67,7 +67,9 @@ class HubContentService:
         if category:
             query["category"] = category
 
-        cursor = self._content_collection.find(query)
+        # Exclude binary audio data to avoid MongoDB 32MB sort memory limit
+        projection = {"audioDataEn": 0, "audioDataSv": 0}
+        cursor = self._content_collection.find(query, projection)
         cursor = cursor.sort("sortOrder", 1)
 
         items = await cursor.to_list(length=500)
@@ -96,7 +98,9 @@ class HubContentService:
         Returns:
             List of published content items
         """
-        cursor = self._content_collection.find({"status": "published"})
+        # Exclude binary audio data to avoid MongoDB 32MB sort memory limit
+        projection = {"audioDataEn": 0, "audioDataSv": 0}
+        cursor = self._content_collection.find({"status": "published"}, projection)
         cursor = cursor.sort("sortOrder", 1)
 
         items = await cursor.to_list(length=500)
@@ -120,7 +124,9 @@ class HubContentService:
             "coachTopics": {"$in": topics}
         }
 
-        cursor = self._content_collection.find(query)
+        # Exclude binary audio data to avoid MongoDB 32MB sort memory limit
+        projection = {"audioDataEn": 0, "audioDataSv": 0}
+        cursor = self._content_collection.find(query, projection)
         cursor = cursor.sort("coachPriority", -1)
 
         items = await cursor.to_list(length=50)
