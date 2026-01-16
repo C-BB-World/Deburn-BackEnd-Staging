@@ -151,6 +151,9 @@ _hub_content_service: Optional[HubContentService] = None
 _coach_config_service: Optional[CoachConfigService] = None
 _compliance_service: Optional[ComplianceService] = None
 
+# Main database (for learning content)
+_main_db: Optional[AsyncIOMotorDatabase] = None
+
 
 # ─────────────────────────────────────────────────────────────────
 # Cached singletons
@@ -403,6 +406,9 @@ def init_all_services(
         firebase_credentials_dict: Firebase credentials as dict
         geoip_database_path: Path to GeoIP database
     """
+    global _main_db
+    _main_db = db
+
     init_auth_services(db, firebase_credentials_path, firebase_credentials_dict, geoip_database_path)
     init_user_services(db)
     init_i18n_services(db)
@@ -796,3 +802,21 @@ async def require_hub_admin(
         )
 
     return user
+
+
+# ─────────────────────────────────────────────────────────────────
+# Main database getter
+# ─────────────────────────────────────────────────────────────────
+
+def get_main_db() -> AsyncIOMotorDatabase:
+    """Get main database instance."""
+    if _main_db is None:
+        raise RuntimeError("Main database not initialized.")
+    return _main_db
+
+
+def get_hub_db() -> AsyncIOMotorDatabase:
+    """Get hub database instance."""
+    if _hub_db is None:
+        raise RuntimeError("Hub database not initialized.")
+    return _hub_db

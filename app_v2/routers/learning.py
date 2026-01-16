@@ -1,15 +1,16 @@
 """
 FastAPI router for Learning endpoints.
 
-Provides endpoints for learning modules and content.
+Provides endpoints for learning content and audio streaming.
 """
 
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app_v2.dependencies import require_auth, get_hub_content_service
+from app_v2.dependencies import require_auth, get_hub_db
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
@@ -17,43 +18,120 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/learning", tags=["learning"])
 
 
-def _map_content_type(content_type: str) -> str:
-    """Map content type to module type."""
-    mapping = {
-        "text_article": "article",
-        "audio_article": "audio",
-        "audio_exercise": "exercise",
-        "video_link": "video",
-    }
-    return mapping.get(content_type, "article")
+def _compute_has_content(item: dict) -> bool:
+    """
+    Determine if content item has actual content available.
+
+    Returns True if content exists based on content type:
+    - text_article: textContentEn is not empty
+    - audio_article/audio_exercise: audioFileEn exists
+    - video_link: videoUrl exists
+    """
+    content_type = item.get("contentType", "")
+
+    if content_type == "text_article":
+        text = item.get("textContentEn", "")
+        return bool(text and text.strip())
+    elif content_type in ("audio_article", "audio_exercise"):
+        return bool(item.get("audioFileEn"))
+    elif content_type == "video_link":
+        return bool(item.get("videoUrl"))
+
+    return False
 
 
-@router.get("/modules")
-async def get_learning_modules(
+@router.get("/content")
+async def get_learning_content(
     user: Annotated[dict, Depends(require_auth)],
 ):
     """
-    Get available learning modules for the user.
+    Get available learning content for the user.
 
-    Returns a list of learning modules with progress information.
+    Returns a list of content items matching deburnalpha structure.
     """
-    content_service = get_hub_content_service()
+    db = get_hub_db()
+    print(f"[DEBUG] Database name: {db.name}")
+    collection = db["contentitems"]
+    print(f"[DEBUG] Collection: {collection.name}")
 
-    # Get published content items
-    items = await content_service.get_all(status="published")
+    # Query published content, exclude binary audio data
+    projection = {"audioDataEn": 0, "audioDataSv": 0}
+    cursor = collection.find({"status": "published"}, projection)
+    cursor = cursor.sort("sortOrder", 1)
+    raw_items = await cursor.to_list(length=500)
+    print(f"[DEBUG] Found {len(raw_items)} items")
 
-    # Transform to learning module format matching API docs
-    modules = []
-    for item in items:
-        module = {
-            "id": item.get("id", str(item.get("_id", ""))),
-            "title": item.get("titleEn", ""),
-            "description": item.get("purpose", ""),
-            "type": _map_content_type(item.get("contentType", "")),
-            "duration": item.get("lengthMinutes", 0),
-            "thumbnail": None,
-            "progress": 0,  # TODO: Track user progress
+    # Transform to API response format
+    items = []
+    for item in raw_items:
+        content_item = {
+            "id": str(item.get("_id", "")),
+            "contentType": item.get("contentType"),
+            "category": item.get("category"),
+            "titleEn": item.get("titleEn"),
+            "titleSv": item.get("titleSv"),
+            "lengthMinutes": item.get("lengthMinutes"),
+            "audioFileEn": item.get("audioFileEn"),
+            "audioFileSv": item.get("audioFileSv"),
+            "textContentEn": item.get("textContentEn"),
+            "textContentSv": item.get("textContentSv"),
+            "videoUrl": item.get("videoUrl"),
+            "videoEmbedCode": item.get("videoEmbedCode"),
+            "videoAvailableInEn": item.get("videoAvailableInEn"),
+            "videoAvailableInSv": item.get("videoAvailableInSv"),
+            "purpose": item.get("purpose"),
+            "sortOrder": item.get("sortOrder"),
+            # Computed field for frontend
+            "hasContent": _compute_has_content(item),
         }
-        modules.append(module)
+        items.append(content_item)
 
-    return success_response({"modules": modules})
+    return success_response({"items": items})
+
+
+@router.get("/content/{content_id}/audio/{language}")
+async def stream_audio(
+    content_id: str,
+    language: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Stream audio content for the frontend player.
+
+    Args:
+        content_id: Content item ID
+        language: 'en' or 'sv'
+
+    Returns:
+        Audio binary data with appropriate Content-Type header
+    """
+    if language not in ("en", "sv"):
+        raise HTTPException(status_code=400, detail="Language must be 'en' or 'sv'")
+
+    db = get_hub_db()
+    collection = db["contentitems"]
+
+    # Get audio data fields based on language
+    lang_suffix = language.capitalize()
+    data_field = f"audioData{lang_suffix}"
+    mime_field = f"audioMimeType{lang_suffix}"
+
+    item = await collection.find_one(
+        {"_id": ObjectId(content_id)},
+        {data_field: 1, mime_field: 1}
+    )
+
+    if not item or not item.get(data_field):
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+    audio_data = item[data_field]
+    mime_type = item.get(mime_field, "audio/mpeg")
+
+    return Response(
+        content=audio_data,
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f"inline; filename=audio.mp3",
+            "Accept-Ranges": "bytes",
+        }
+    )

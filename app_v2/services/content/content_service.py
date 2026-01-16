@@ -60,7 +60,7 @@ class ContentService:
         self._source_type = source_type
         self._filepath = filepath
         self._db = db
-        self._content_collection = db["contentItems"] if db else None
+        self._content_collection = db["contentitems"] if db else None
         self._cached_content: Optional[List[Dict[str, Any]]] = None
 
     def _is_database_mode(self) -> bool:
