@@ -33,7 +33,7 @@ class CheckInService:
             db: MongoDB database connection
         """
         self._db = db
-        self._checkins_collection = db["checkIns"]
+        self._checkins_collection = db["checkins"]
 
     async def submit_checkin(
         self,

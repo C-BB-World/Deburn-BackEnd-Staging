@@ -44,7 +44,7 @@ async def get_dashboard(
     todays_checkin = await checkin_service.get_today_checkin(user_id)
 
     # Get streak
-    streak = await checkin_analytics.get_streak(user_id)
+    streak = await checkin_analytics.calculate_streak(user_id)
 
     # Get insights count
     insights_count = await insight_service.get_unread_count(user_id)
