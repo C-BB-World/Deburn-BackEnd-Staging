@@ -1141,10 +1141,10 @@ class AvailabilityService:
 
 ---
 
-### CircleGroup (Collection)
+### CircleGroup (Collection: `circlegroups`)
 
 ```python
-# circle_groups collection
+# circlegroups collection
 {
     "_id": ObjectId,
     "poolId": ObjectId,            # Pool this group belongs to
@@ -1170,10 +1170,10 @@ class AvailabilityService:
 
 ---
 
-### CircleMeeting (Collection)
+### CircleMeeting (Collection: `circlemeetings`)
 
 ```python
-# circle_meetings collection
+# circlemeetings collection
 {
     "_id": ObjectId,
     "groupId": ObjectId,           # Group this meeting is for
@@ -1217,10 +1217,10 @@ class AvailabilityService:
 
 ---
 
-### UserAvailability (Collection)
+### UserAvailability (Collection: `useravailability`)
 
 ```python
-# user_availability collection
+# useravailability collection
 {
     "_id": ObjectId,
     "userId": ObjectId,            # User this availability belongs to
