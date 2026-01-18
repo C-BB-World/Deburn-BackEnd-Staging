@@ -87,3 +87,13 @@ class InviteeItem(BaseModel):
 class SendInvitationsRequest(BaseModel):
     """POST /api/circles/pools/:id/invitations"""
     invitees: List[InviteeItem]
+
+
+class CreatePoolRequest(BaseModel):
+    """POST /api/circles/pools"""
+    name: str
+    organizationId: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+    targetGroupSize: int = Field(default=4, ge=3, le=6)
+    cadence: str = Field(default="biweekly", pattern="^(weekly|biweekly)$")

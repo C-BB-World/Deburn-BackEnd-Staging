@@ -156,6 +156,123 @@ The Deburn Team
             text=text_content,
         )
 
+    async def send_circle_invitation_email(
+        self,
+        to_email: str,
+        token: str,
+        pool_name: str,
+        topic: Optional[str] = None,
+        custom_message: Optional[str] = None,
+        first_name: Optional[str] = None,
+        expires_at: Optional[str] = None,
+    ) -> dict:
+        """
+        Send circle invitation email.
+
+        Args:
+            to_email: Recipient email address
+            token: Unique invitation token
+            pool_name: Name of the circle pool
+            topic: Discussion topic (optional)
+            custom_message: Custom message from inviter (optional)
+            first_name: Invitee's first name (optional)
+            expires_at: Expiration date string (optional)
+
+        Returns:
+            dict with success status and message
+        """
+        name = first_name or "there"
+        subject = f"You're invited to join {pool_name}"
+
+        accept_link = f"{self._app_url}/circles/invite?token={token}"
+        decline_link = f"{self._app_url}/circles/invite?token={token}&action=decline"
+
+        # Build topic section
+        topic_html = ""
+        topic_text = ""
+        if topic:
+            topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>Topic:</strong> {topic}</p>'
+            topic_text = f"\nTopic: {topic}"
+
+        # Build custom message section
+        message_html = ""
+        message_text = ""
+        if custom_message:
+            message_html = f'<div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0; font-style: italic;">"{custom_message}"</p></div>'
+            message_text = f'\n\nMessage from the inviter:\n"{custom_message}"'
+
+        # Build expiry section
+        expiry_html = ""
+        expiry_text = ""
+        if expires_at:
+            expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">This invitation expires on {expires_at}.</p>'
+            expiry_text = f"\n\nThis invitation expires on {expires_at}."
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+        .button {{ display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; }}
+        .button-primary {{ background: #667eea; color: white; }}
+        .button-secondary {{ background: #e5e7eb; color: #374151; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>You're Invited!</h1>
+    </div>
+    <div class="container">
+        <p>Hi {name},</p>
+        <p>You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.</p>
+        {topic_html}
+        {message_html}
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{accept_link}" class="button button-primary">Accept Invitation</a>
+            <a href="{decline_link}" class="button button-secondary">Decline</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #667eea; font-size: 14px;">{accept_link}</p>
+        {expiry_html}
+        <div class="footer">
+            <p>Best regards,<br>The Deburn Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_content = f"""
+You're Invited to {pool_name}!
+
+Hi {name},
+
+You've been invited to join {pool_name}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.
+{topic_text}
+{message_text}
+
+Accept the invitation: {accept_link}
+
+Decline the invitation: {decline_link}
+{expiry_text}
+
+Best regards,
+The Deburn Team
+"""
+
+        return await self._send(
+            to=to_email,
+            subject=subject,
+            html=html_content,
+            text=text_content,
+        )
+
     async def send_password_reset_email(
         self,
         to_email: str,

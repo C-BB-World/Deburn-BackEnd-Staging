@@ -36,8 +36,8 @@ class PoolService:
             db: MongoDB database connection
         """
         self._db = db
-        self._pools_collection = db["circlePools"]
-        self._org_members_collection = db["organizationMembers"]
+        self._pools_collection = db["circlepools"]
+        self._org_members_collection = db["organizationmembers"]
 
     async def create_pool(
         self,
@@ -216,7 +216,7 @@ class PoolService:
             {"$set": {"status": "cancelled", "updatedAt": now}}
         )
 
-        invitations_collection = self._db["circleInvitations"]
+        invitations_collection = self._db["circleinvitations"]
         await invitations_collection.update_many(
             {"poolId": ObjectId(pool_id), "status": "pending"},
             {"$set": {"status": "cancelled", "updatedAt": now}}
@@ -243,8 +243,8 @@ class PoolService:
         """Get pool statistics."""
         pool = await self.get_pool(pool_id)
 
-        invitations_collection = self._db["circleInvitations"]
-        groups_collection = self._db["circleGroups"]
+        invitations_collection = self._db["circleinvitations"]
+        groups_collection = self._db["circlegroups"]
 
         pending = await invitations_collection.count_documents(
             {"poolId": ObjectId(pool_id), "status": "pending"}

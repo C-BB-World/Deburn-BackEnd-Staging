@@ -40,9 +40,9 @@ class MeetingService:
         """
         self._db = db
         self._calendar_service = calendar_service
-        self._meetings_collection = db["circleMeetings"]
-        self._groups_collection = db["circleGroups"]
-        self._pools_collection = db["circlePools"]
+        self._meetings_collection = db["circlemeetings"]
+        self._groups_collection = db["circlegroups"]
+        self._pools_collection = db["circlepools"]
 
     async def schedule_meeting(
         self,
@@ -397,7 +397,7 @@ class MeetingService:
 
         pool = await self._pools_collection.find_one({"_id": group["poolId"]})
         if pool:
-            org_members = self._db["organizationMembers"]
+            org_members = self._db["organizationmembers"]
             admin = await org_members.find_one({
                 "organizationId": pool["organizationId"],
                 "userId": ObjectId(user_id),

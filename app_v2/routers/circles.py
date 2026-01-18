@@ -22,6 +22,7 @@ from app_v2.schemas.circles import (
     ScheduleMeetingRequest,
     UpdateAttendanceRequest,
     SendInvitationsRequest,
+    CreatePoolRequest,
 )
 from common.utils import success_response
 
@@ -71,14 +72,8 @@ async def get_my_invitations(
     accepted = await invitation_service.get_accepted_invitations_for_user(user_id)
 
     return success_response({
-        "invitations": [
-            {
-                "id": str(inv["_id"]),
-                "groupName": inv.get("poolName", ""),
-                "invitedBy": inv.get("invitedBy", ""),
-            }
-            for inv in pending
-        ]
+        "pending": pending,
+        "accepted": accepted,
     })
 
 
@@ -90,7 +85,7 @@ async def get_user_availability(
     availability_service = get_availability_service()
     user_id = str(user["_id"])
 
-    result = await availability_service.get_user_availability(user_id)
+    result = await availability_service.get_availability(user_id)
 
     slots = []
     if result:
@@ -269,10 +264,7 @@ async def decline_invitation(
     """Decline an invitation."""
     invitation_service = get_invitation_service()
 
-    await invitation_service.decline_invitation(
-        token=token,
-        user_id=str(user["_id"])
-    )
+    await invitation_service.decline_invitation(token=token)
 
     return success_response({"message": "Invitation declined"})
 
@@ -316,6 +308,41 @@ async def update_meeting_attendance(
 # Admin Endpoints (Organization Admin only)
 # =============================================================================
 
+@router.post("/pools")
+async def create_pool(
+    body: CreatePoolRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Create a new circle pool.
+
+    Only organization admins can create pools.
+    """
+    pool_service = get_pool_service()
+    user_id = str(user["_id"])
+
+    pool = await pool_service.create_pool(
+        organization_id=body.organizationId,
+        name=body.name,
+        created_by=user_id,
+        topic=body.topic,
+        description=body.description,
+        target_group_size=body.targetGroupSize,
+        cadence=body.cadence,
+    )
+
+    return success_response({
+        "id": str(pool["_id"]),
+        "name": pool.get("name", ""),
+        "status": pool.get("status", "draft"),
+        "organizationId": str(pool.get("organizationId")),
+        "stats": pool.get("stats", {}),
+        "targetGroupSize": pool.get("targetGroupSize", 4),
+        "cadence": pool.get("cadence", "biweekly"),
+        "createdAt": pool.get("createdAt").isoformat() if pool.get("createdAt") else None,
+    })
+
+
 @router.get("/pools")
 async def get_pools(
     user: Annotated[dict, Depends(require_auth)],
@@ -326,13 +353,14 @@ async def get_pools(
 
     Returns pools where the user is an organization admin.
     """
+    from bson import ObjectId
     from app_v2.dependencies import get_main_db
 
     db = get_main_db()
-    user_id = user["_id"]
+    user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
 
     # Find organizations where user is admin
-    org_members = db["organizationMembers"]
+    org_members = db["organizationmembers"]
     admin_memberships = await org_members.find({
         "userId": user_id,
         "role": "admin",
@@ -475,13 +503,15 @@ async def cancel_invitation(
     pool = await pool_service.get_pool(str(invitation["poolId"]))
 
     # Verify user is org admin
+    from bson import ObjectId
     from app_v2.dependencies import get_main_db
 
     db = get_main_db()
-    org_members = db["organizationMembers"]
+    user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
+    org_members = db["organizationmembers"]
     is_admin = await org_members.find_one({
         "organizationId": pool["organizationId"],
-        "userId": user["_id"],
+        "userId": user_id,
         "role": "admin"
     })
 

@@ -39,10 +39,10 @@ class GroupService:
             db: MongoDB database connection
         """
         self._db = db
-        self._groups_collection = db["circleGroups"]
-        self._pools_collection = db["circlePools"]
-        self._invitations_collection = db["circleInvitations"]
-        self._org_members_collection = db["organizationMembers"]
+        self._groups_collection = db["circlegroups"]
+        self._pools_collection = db["circlepools"]
+        self._invitations_collection = db["circleinvitations"]
+        self._org_members_collection = db["organizationmembers"]
 
     async def assign_groups(self, pool_id: str, user_id: str) -> Dict[str, Any]:
         """

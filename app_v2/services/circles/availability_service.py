@@ -27,8 +27,8 @@ class AvailabilityService:
             db: MongoDB database connection
         """
         self._db = db
-        self._availability_collection = db["userAvailability"]
-        self._groups_collection = db["circleGroups"]
+        self._availability_collection = db["useravailability"]
+        self._groups_collection = db["circlegroups"]
 
     async def get_availability(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user's availability settings."""

@@ -289,10 +289,11 @@ async def get_admin_status(
 
     Returns admin status and list of organizations where user is admin.
     """
+    from bson import ObjectId
     from app_v2.dependencies import get_main_db
 
     db = get_main_db()
-    user_id = user["_id"]
+    user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
 
     # Find organizations where user is admin
     org_members_collection = db["organizationmembers"]

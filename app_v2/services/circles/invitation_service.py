@@ -37,8 +37,8 @@ class InvitationService:
             db: MongoDB database connection
         """
         self._db = db
-        self._invitations_collection = db["circleInvitations"]
-        self._pools_collection = db["circlePools"]
+        self._invitations_collection = db["circleinvitations"]
+        self._pools_collection = db["circlepools"]
 
     async def send_invitations(
         self,
@@ -110,6 +110,23 @@ class InvitationService:
             }
 
             await self._invitations_collection.insert_one(invitation_doc)
+
+            # Send invitation email (non-blocking - invitation saved even if email fails)
+            try:
+                from app_v2.services.email.email_service import EmailService
+                email_service = EmailService()
+                await email_service.send_circle_invitation_email(
+                    to_email=email,
+                    token=token,
+                    pool_name=pool.get("name", "Leadership Circle"),
+                    topic=pool.get("topic"),
+                    custom_message=pool.get("invitationSettings", {}).get("customMessage"),
+                    first_name=invitee.get("firstName"),
+                    expires_at=expires_at.strftime("%B %d, %Y"),
+                )
+            except Exception as email_error:
+                logger.warning(f"Failed to send invitation email to {email}: {email_error}")
+
             sent.append({"email": email, "token": token})
 
         await self._pools_collection.update_one(
@@ -209,7 +226,12 @@ class InvitationService:
 
         now = datetime.now(timezone.utc)
 
-        if invitation["expiresAt"] < now:
+        # Handle both timezone-aware and naive datetimes from MongoDB
+        expires_at = invitation["expiresAt"]
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if expires_at < now:
             await self._invitations_collection.update_one(
                 {"_id": invitation["_id"]},
                 {"$set": {"status": "expired", "updatedAt": now}}
@@ -351,6 +373,82 @@ class InvitationService:
             )
 
         return invitation
+
+    async def get_pending_invitations_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get pending invitations for a user by their email."""
+        # First get user's email from users collection
+        users_collection = self._db["users"]
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+
+        if not user:
+            return []
+
+        email = user.get("email", "").lower()
+
+        # Find pending invitations for this email
+        cursor = self._invitations_collection.find({
+            "email": email,
+            "status": "pending"
+        }).sort("createdAt", -1)
+
+        invitations = await cursor.to_list(length=100)
+
+        # Populate pool details for each invitation
+        result = []
+        for inv in invitations:
+            pool = await self._pools_collection.find_one({"_id": inv.get("poolId")})
+            pool_name = pool.get("name", "") if pool else ""
+
+            expires_at = inv.get("expiresAt")
+            expires_at_str = None
+            if expires_at:
+                try:
+                    expires_at_str = expires_at.isoformat() if hasattr(expires_at, 'isoformat') else str(expires_at)
+                except Exception:
+                    expires_at_str = str(expires_at)
+
+            result.append({
+                "id": str(inv["_id"]),
+                "poolName": pool_name,
+                "token": inv.get("token", ""),
+                "expiresAt": expires_at_str,
+                "status": inv.get("status", "pending"),
+            })
+
+        return result
+
+    async def get_accepted_invitations_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Get accepted invitations for a user."""
+        cursor = self._invitations_collection.find({
+            "userId": ObjectId(user_id),
+            "status": "accepted"
+        }).sort("acceptedAt", -1)
+
+        invitations = await cursor.to_list(length=100)
+
+        # Populate pool details for each invitation
+        result = []
+        for inv in invitations:
+            pool = await self._pools_collection.find_one({"_id": inv.get("poolId")})
+            pool_name = pool.get("name", "") if pool else ""
+
+            accepted_at = inv.get("acceptedAt")
+            accepted_at_str = None
+            if accepted_at:
+                try:
+                    accepted_at_str = accepted_at.isoformat() if hasattr(accepted_at, 'isoformat') else str(accepted_at)
+                except Exception:
+                    accepted_at_str = str(accepted_at)
+
+            result.append({
+                "id": str(inv["_id"]),
+                "poolName": pool_name,
+                "token": inv.get("token", ""),
+                "acceptedAt": accepted_at_str,
+                "status": inv.get("status", "accepted"),
+            })
+
+        return result
 
     async def expire_old_invitations(self) -> int:
         """Mark expired pending invitations. Called by cron job."""
