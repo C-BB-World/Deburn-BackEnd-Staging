@@ -1067,10 +1067,10 @@ class AvailabilityService:
 
 ## Data Models
 
-### CirclePool (Collection)
+### CirclePool (Collection: `circlepools`)
 
 ```python
-# circle_pools collection
+# circlepools collection
 {
     "_id": ObjectId,
     "organizationId": ObjectId,    # Organization this pool belongs to
@@ -1105,10 +1105,10 @@ class AvailabilityService:
 
 ---
 
-### CircleInvitation (Collection)
+### CircleInvitation (Collection: `circleinvitations`)
 
 ```python
-# circle_invitations collection
+# circleinvitations collection
 {
     "_id": ObjectId,
     "poolId": ObjectId,            # Pool being invited to
@@ -1241,29 +1241,55 @@ class AvailabilityService:
 
 ## Configuration
 
+### Environment Variables (.env)
+
+```bash
+# Group settings (in .env file)
+MIN_GROUP_SIZE=3              # Minimum members per group (default: 3)
+MAX_GROUP_SIZE=6              # Maximum members per group (default: 6)
+
+# Note: Set MIN_GROUP_SIZE=1 for testing with small numbers of users
+```
+
+### Implementation
+
+Group size settings are read from environment variables in `app_v2/services/circles/group_service.py`:
+
 ```python
-# Environment variables
+import os
 
-# Group settings
-CIRCLE_MIN_GROUP_SIZE = 3              # Minimum members per group
-CIRCLE_MAX_GROUP_SIZE = 6              # Maximum members per group
-CIRCLE_DEFAULT_GROUP_SIZE = 4          # Default target size
+MIN_GROUP_SIZE = int(os.environ.get("MIN_GROUP_SIZE", "3"))
+MAX_GROUP_SIZE = int(os.environ.get("MAX_GROUP_SIZE", "6"))
+```
 
+### Default Constants
+
+```python
 # Invitation settings
-CIRCLE_INVITATION_EXPIRY_DAYS = 14     # Default invitation expiry
-CIRCLE_INVITATION_REMINDER_DAYS = 7    # Send reminder after N days
+INVITATION_EXPIRY_DAYS = 14            # Default invitation expiry
+TOKEN_LENGTH = 64                      # Invitation token length
 
 # Meeting settings
-CIRCLE_DEFAULT_MEETING_DURATION = 60   # Default duration in minutes
-CIRCLE_DEFAULT_TIMEZONE = "Europe/Stockholm"
+DEFAULT_MEETING_DURATION = 60          # Default duration in minutes
+DEFAULT_TIMEZONE = "Europe/Stockholm"
 
-# Reminder settings
-CIRCLE_REMINDER_24H_ENABLED = true     # Send 24-hour reminders
-CIRCLE_REMINDER_1H_ENABLED = true      # Send 1-hour reminders
-CIRCLE_REMINDER_CRON = "*/15 * * * *"  # Check every 15 minutes
+# Group naming
+GROUP_NAME_PREFIX = "Circle "          # Groups named "Circle A", "Circle B", etc.
+```
 
-# Cron schedules
-CIRCLE_EXPIRE_INVITATIONS_CRON = "0 * * * *"  # Hourly
+### Pool Settings (per-pool configuration)
+
+Each pool can have custom settings stored in the pool document:
+
+```python
+{
+    "targetGroupSize": 4,              # Target members per group (3-6)
+    "cadence": "biweekly",             # "weekly" | "biweekly"
+    "invitationSettings": {
+        "expiryDays": 14,              # Days until invite expires
+        "customMessage": "..."         # Custom message in invitation email
+    }
+}
 ```
 
 ---

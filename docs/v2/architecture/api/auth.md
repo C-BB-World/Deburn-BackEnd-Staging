@@ -310,3 +310,43 @@ Refreshes access token.
 ```typescript
 {}  // Empty object
 ```
+
+---
+
+## GET /api/auth/admin-status
+
+Checks if the current user is an organization admin. Used by the frontend to determine whether to show admin UI elements.
+
+**Frontend Input** (src/features/circles/circles-adminApi.js):
+No request body.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "isAdmin": true,
+    "organizations": [
+      {
+        "id": "org_123",
+        "name": "Acme Corp",
+        "role": "admin"
+      }
+    ]
+  }
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `isAdmin` | boolean | Whether user is admin of any organization |
+| `organizations` | array | List of organizations where user is admin |
+| `organizations[].id` | string | Organization ID |
+| `organizations[].name` | string | Organization name |
+| `organizations[].role` | string | User's role (always "admin" in this response) |
+
+**Implementation Notes:**
+- Queries `organizationmembers` collection for entries where `userId` matches, `role` = "admin", and `status` = "active"
+- Returns empty organizations array if user is not an admin of any organization
+- Used by AuthContext to set `isOrgAdmin` flag in user state

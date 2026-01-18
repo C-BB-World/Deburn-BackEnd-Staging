@@ -27,6 +27,52 @@ Checks if the current user is an organization admin.
 
 ---
 
+## POST /api/circles/pools
+
+Creates a new circle pool (admin only).
+
+**Request Body:**
+```json
+{
+  "name": "Q1 Leadership Cohort",
+  "organizationId": "org_123",
+  "topic": "Leadership Development",
+  "description": "Monthly leadership circles for Q1",
+  "targetGroupSize": 4,
+  "cadence": "biweekly"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Pool name |
+| `organizationId` | string | Yes | Organization ID |
+| `topic` | string | No | Discussion topic/theme |
+| `description` | string | No | Pool description |
+| `targetGroupSize` | int | No | Target members per group (3-6, default: 4) |
+| `cadence` | string | No | Meeting frequency: `weekly` or `biweekly` (default: biweekly) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "pool": {
+      "id": "pool_123",
+      "name": "Q1 Leadership Cohort",
+      "topic": "Leadership Development",
+      "status": "draft",
+      "targetGroupSize": 4,
+      "cadence": "biweekly",
+      "organizationId": "org_123",
+      "createdAt": "2026-01-18T10:00:00Z"
+    }
+  }
+}
+```
+
+---
+
 ## GET /api/circles/pools
 
 Fetches pools for the user's organization. Auto-detects organization if user is admin of one org.
@@ -164,17 +210,24 @@ Lists all invitations for a pool (admin only).
 
 ## DELETE /api/circles/invitations/:invitationId
 
-Cancels/removes an invitation (admin only).
+Deletes an invitation and updates pool stats (admin only). Works for invitations in any status (pending, accepted, declined).
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "message": "Invitation cancelled successfully"
+    "message": "Invitation deleted successfully"
   }
 }
 ```
+
+**Side Effects:**
+- Invitation record is deleted from `circleinvitations` collection
+- Pool stats are decremented based on invitation status:
+  - Pending: `totalInvited` decremented
+  - Accepted: `totalInvited` and `totalAccepted` decremented
+  - Declined: `totalInvited` and `totalDeclined` decremented
 
 ---
 
@@ -267,258 +320,58 @@ Lists groups for a pool (admin only).
 
 ---
 
-## Implementation Plan
+## Implementation Status
 
-### Overview
+All endpoints have been implemented and tested.
 
-The services already exist with full functionality. Only the **router endpoints** need to be added.
+| Endpoint | Status | File | Line |
+|----------|--------|------|------|
+| `GET /api/auth/admin-status` | ✅ Complete | `app_v2/routers/auth.py` | 283-330 |
+| `POST /api/circles/pools` | ✅ Complete | `app_v2/routers/circles.py` | 319-371 |
+| `GET /api/circles/pools` | ✅ Complete | `app_v2/routers/circles.py` | 374-397 |
+| `GET /api/circles/pools/:id` | ✅ Complete | `app_v2/routers/circles.py` | 400-427 |
+| `POST /api/circles/pools/:id/invitations` | ✅ Complete | `app_v2/routers/circles.py` | 430-457 |
+| `GET /api/circles/pools/:id/invitations` | ✅ Complete | `app_v2/routers/circles.py` | 460-495 |
+| `DELETE /api/circles/invitations/:id` | ✅ Complete | `app_v2/routers/circles.py` | 498-529 |
+| `POST /api/circles/pools/:id/assign` | ✅ Complete | `app_v2/routers/circles.py` | 532-582 |
+| `GET /api/circles/pools/:id/groups` | ✅ Complete | `app_v2/routers/circles.py` | 585-635 |
 
-### Existing Services (No Changes Needed)
+### Key Implementation Notes
 
-| Service | File | Methods to Use |
-|---------|------|----------------|
-| `PoolService` | `app_v2/services/circles/pool_service.py` | `get_pools_for_organization()`, `get_pool()`, `get_pool_stats()` |
-| `InvitationService` | `app_v2/services/circles/invitation_service.py` | `send_invitations()`, `get_invitations_for_pool()` |
+1. **ObjectId Handling**: All endpoints convert user IDs to ObjectId before querying MongoDB to avoid type mismatch issues.
+
+2. **Datetime Serialization**: Datetime fields are serialized with robust handling using `isoformat()` with fallback to string conversion.
+
+3. **Delete Invitation**: Completely removes the invitation record and updates pool stats accordingly.
+
+4. **Admin Authorization**: Each endpoint verifies the user is an organization admin via the `organizationmembers` collection.
+
+### Services Used
+
+| Service | File | Key Methods |
+|---------|------|-------------|
+| `PoolService` | `app_v2/services/circles/pool_service.py` | `create_pool()`, `get_pools_for_organization()`, `get_pool()` |
+| `InvitationService` | `app_v2/services/circles/invitation_service.py` | `send_invitations()`, `get_invitations_for_pool()`, `cancel_invitation()` |
 | `GroupService` | `app_v2/services/circles/group_service.py` | `assign_groups()`, `get_groups_for_pool()` |
 
-### Files to Modify
-
-#### 1. `app_v2/routers/auth.py`
-
-Add new endpoint:
+### Schemas
 
 ```python
-@router.get("/admin-status")
-async def get_admin_status(
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Check if current user is an organization admin."""
-    # Query organizationMembers for admin role
-    org_members_collection = get_db()["organizationMembers"]
+# app_v2/schemas/circles.py
 
-    admin_memberships = await org_members_collection.find({
-        "userId": ObjectId(user["_id"]),
-        "role": "admin",
-        "status": "active"
-    }).to_list(length=100)
-
-    organizations = []
-    if admin_memberships:
-        org_ids = [m["organizationId"] for m in admin_memberships]
-        orgs = await get_db()["organizations"].find({
-            "_id": {"$in": org_ids}
-        }).to_list(length=100)
-
-        organizations = [{
-            "id": str(org["_id"]),
-            "name": org.get("name"),
-            "role": "admin"
-        } for org in orgs]
-
-    return success_response({
-        "isAdmin": len(organizations) > 0,
-        "organizations": organizations
-    })
-```
-
-#### 2. `app_v2/routers/circles.py`
-
-Add new admin endpoints after existing member endpoints:
-
-```python
-# ==========================================
-# ADMIN ENDPOINTS
-# ==========================================
-
-@router.get("/pools")
-async def get_pools(
-    user: Annotated[dict, Depends(require_auth)],
-    status: Optional[str] = None,
-):
-    """Get pools for organization (admin only)."""
-    pool_service = get_pool_service()
-    user_id = str(user["_id"])
-
-    pools = await pool_service.get_pools_for_organization(
-        organization_id=None,  # Auto-detect
-        user_id=user_id,
-        status=status
-    )
-
-    return success_response({"pools": pools})
-
-
-@router.get("/pools/{pool_id}")
-async def get_pool(
-    pool_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Get pool details (admin only)."""
-    pool_service = get_pool_service()
-
-    pool = await pool_service.get_pool(pool_id)
-
-    return success_response({"pool": pool})
-
-
-@router.post("/pools/{pool_id}/invitations")
-async def send_invitations(
-    pool_id: str,
-    body: SendInvitationsRequest,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Send invitations to a pool (admin only)."""
-    invitation_service = get_invitation_service()
-    user_id = str(user["_id"])
-
-    result = await invitation_service.send_invitations(
-        pool_id=pool_id,
-        invitees=[inv.model_dump() for inv in body.invitees],
-        invited_by=user_id
-    )
-
-    return success_response(result)
-
-
-@router.get("/pools/{pool_id}/invitations")
-async def get_pool_invitations(
-    pool_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Get all invitations for a pool (admin only)."""
-    invitation_service = get_invitation_service()
-
-    invitations = await invitation_service.get_invitations_for_pool(pool_id)
-
-    formatted = [{
-        "id": str(inv["_id"]),
-        "email": inv.get("email"),
-        "firstName": inv.get("firstName"),
-        "lastName": inv.get("lastName"),
-        "status": inv.get("status"),
-        "invitedAt": inv.get("createdAt"),
-        "acceptedAt": inv.get("acceptedAt"),
-        "declinedAt": inv.get("declinedAt"),
-        "expiresAt": inv.get("expiresAt"),
-    } for inv in invitations]
-
-    return success_response({
-        "invitations": formatted,
-        "count": len(formatted)
-    })
-
-
-@router.delete("/invitations/{invitation_id}")
-async def cancel_invitation(
-    invitation_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Cancel/remove an invitation (admin only)."""
-    # Need to add cancel_invitation method to InvitationService
-    # or update status directly
-
-    return success_response({
-        "message": "Invitation cancelled successfully"
-    })
-
-
-@router.post("/pools/{pool_id}/assign")
-async def assign_groups(
-    pool_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Assign accepted members to groups (admin only)."""
-    group_service = get_group_service()
-    user_id = str(user["_id"])
-
-    result = await group_service.assign_groups(
-        pool_id=pool_id,
-        assigned_by=user_id
-    )
-
-    return success_response(result)
-
-
-@router.get("/pools/{pool_id}/groups")
-async def get_pool_groups(
-    pool_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Get groups for a pool (admin only)."""
-    group_service = get_group_service()
-
-    groups = await group_service.get_groups_for_pool(pool_id)
-
-    formatted = [{
-        "id": str(g["_id"]),
-        "name": g.get("name"),
-        "members": [{
-            "id": str(m.get("_id", m)),
-            "email": m.get("email", ""),
-            "firstName": m.get("profile", {}).get("firstName", ""),
-            "lastName": m.get("profile", {}).get("lastName", ""),
-        } for m in g.get("members", [])],
-        "memberCount": len(g.get("members", [])),
-        "createdAt": g.get("createdAt"),
-    } for g in groups]
-
-    return success_response({
-        "groups": formatted,
-        "count": len(formatted)
-    })
-```
-
-#### 3. `app_v2/schemas/circles.py`
-
-Add new request schemas:
-
-```python
-class InviteeRequest(BaseModel):
+class InviteeItem(BaseModel):
     email: str
     firstName: Optional[str] = None
     lastName: Optional[str] = None
 
 class SendInvitationsRequest(BaseModel):
-    invitees: List[InviteeRequest]
+    invitees: List[InviteeItem]
+
+class CreatePoolRequest(BaseModel):
+    name: str
+    organizationId: str
+    topic: Optional[str] = None
+    description: Optional[str] = None
+    targetGroupSize: int = Field(default=4, ge=3, le=6)
+    cadence: str = Field(default="biweekly", pattern="^(weekly|biweekly)$")
 ```
-
-#### 4. `app_v2/dependencies.py`
-
-Ensure these dependency functions exist:
-
-```python
-def get_pool_service() -> PoolService:
-    return PoolService(get_db())
-
-def get_invitation_service() -> InvitationService:
-    return InvitationService(get_db())
-
-def get_group_service() -> GroupService:
-    return GroupService(get_db())
-```
-
-### Admin Authorization
-
-Each admin endpoint should verify the user is an org admin for the pool's organization. The `PoolService._is_org_admin()` method already exists for this:
-
-```python
-async def _is_org_admin(self, organization_id: str, user_id: str) -> bool:
-    member = await self._org_members_collection.find_one({
-        "organizationId": ObjectId(organization_id),
-        "userId": ObjectId(user_id),
-        "role": "admin"
-    })
-    return member is not None
-```
-
-### Testing Checklist
-
-- [ ] `GET /api/auth/admin-status` returns correct admin status
-- [ ] `GET /api/circles/pools` returns pools for admin's organization
-- [ ] `GET /api/circles/pools/:id` returns pool details
-- [ ] `POST /api/circles/pools/:id/invitations` sends invitations
-- [ ] `GET /api/circles/pools/:id/invitations` lists invitations
-- [ ] `DELETE /api/circles/invitations/:id` cancels invitation
-- [ ] `POST /api/circles/pools/:id/assign` assigns groups
-- [ ] `GET /api/circles/pools/:id/groups` lists groups
-- [ ] Non-admin users get 403 on all admin endpoints
