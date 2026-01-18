@@ -469,18 +469,34 @@ async def get_pool_invitations(
         status=status
     )
 
-    formatted = [
-        {
+    formatted = []
+    for inv in invitations:
+        created_at = inv.get("createdAt")
+        expires_at = inv.get("expiresAt")
+
+        created_at_str = None
+        if created_at:
+            try:
+                created_at_str = created_at.isoformat() if hasattr(created_at, 'isoformat') else str(created_at)
+            except Exception:
+                created_at_str = str(created_at)
+
+        expires_at_str = None
+        if expires_at:
+            try:
+                expires_at_str = expires_at.isoformat() if hasattr(expires_at, 'isoformat') else str(expires_at)
+            except Exception:
+                expires_at_str = str(expires_at)
+
+        formatted.append({
             "id": str(inv["_id"]),
             "email": inv.get("email", ""),
             "firstName": inv.get("firstName"),
             "lastName": inv.get("lastName"),
             "status": inv.get("status", "pending"),
-            "createdAt": inv.get("createdAt").isoformat() if inv.get("createdAt") else None,
-            "expiresAt": inv.get("expiresAt").isoformat() if inv.get("expiresAt") else None,
-        }
-        for inv in invitations
-    ]
+            "createdAt": created_at_str,
+            "expiresAt": expires_at_str,
+        })
 
     return success_response({"invitations": formatted})
 

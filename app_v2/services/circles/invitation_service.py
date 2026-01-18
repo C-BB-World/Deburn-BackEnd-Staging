@@ -314,17 +314,16 @@ class InvitationService:
 
     async def cancel_invitation(self, invitation_id: str) -> Dict[str, Any]:
         """
-        Cancel a pending invitation.
+        Delete an invitation and update pool stats.
 
         Args:
-            invitation_id: ID of invitation to cancel
+            invitation_id: ID of invitation to delete
 
         Returns:
-            Updated invitation
+            Dict with success message
 
         Raises:
             NotFoundException: If invitation not found
-            ValidationException: If already processed
         """
         invitation = await self._invitations_collection.find_one({
             "_id": ObjectId(invitation_id)
@@ -336,29 +335,35 @@ class InvitationService:
                 code="INVITATION_NOT_FOUND"
             )
 
-        if invitation["status"] != "pending":
-            raise ValidationException(
-                message=f"Cannot cancel invitation with status: {invitation['status']}",
-                code="INVITATION_ALREADY_PROCESSED"
-            )
-
+        pool_id = invitation["poolId"]
+        status = invitation.get("status", "pending")
         now = datetime.now(timezone.utc)
 
-        await self._invitations_collection.update_one(
-            {"_id": ObjectId(invitation_id)},
-            {
-                "$set": {
-                    "status": "cancelled",
-                    "updatedAt": now
-                }
-            }
-        )
+        # Update pool stats based on invitation status
+        stats_update = {"$set": {"updatedAt": now}}
 
-        logger.info(f"Invitation {invitation_id} cancelled")
+        if status == "pending":
+            stats_update["$inc"] = {"stats.totalInvited": -1}
+        elif status == "accepted":
+            stats_update["$inc"] = {"stats.totalInvited": -1, "stats.totalAccepted": -1}
+        elif status == "declined":
+            stats_update["$inc"] = {"stats.totalInvited": -1, "stats.totalDeclined": -1}
 
-        return await self._invitations_collection.find_one({
+        # Update pool stats
+        if "$inc" in stats_update:
+            await self._pools_collection.update_one(
+                {"_id": pool_id},
+                stats_update
+            )
+
+        # Delete the invitation
+        await self._invitations_collection.delete_one({
             "_id": ObjectId(invitation_id)
         })
+
+        logger.info(f"Invitation {invitation_id} deleted (was {status})")
+
+        return {"message": "Invitation deleted successfully"}
 
     async def get_invitation_by_id(self, invitation_id: str) -> Dict[str, Any]:
         """Get invitation by ID."""

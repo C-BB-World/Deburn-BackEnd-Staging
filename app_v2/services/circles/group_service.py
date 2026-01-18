@@ -5,6 +5,7 @@ Handles circle group formation, management, and member operations.
 """
 
 import logging
+import os
 import random
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -26,8 +27,8 @@ class GroupService:
     Handles circle group formation, management, and member operations.
     """
 
-    MIN_GROUP_SIZE = 3
-    MAX_GROUP_SIZE = 6
+    MIN_GROUP_SIZE = int(os.environ.get("MIN_GROUP_SIZE", "3"))
+    MAX_GROUP_SIZE = int(os.environ.get("MAX_GROUP_SIZE", "6"))
     GROUP_NAMES = ["Circle A", "Circle B", "Circle C", "Circle D", "Circle E",
                    "Circle F", "Circle G", "Circle H", "Circle I", "Circle J"]
 
