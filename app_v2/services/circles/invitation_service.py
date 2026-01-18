@@ -290,6 +290,68 @@ class InvitationService:
         cursor = self._invitations_collection.find(query).sort("createdAt", -1)
         return await cursor.to_list(length=500)
 
+    async def cancel_invitation(self, invitation_id: str) -> Dict[str, Any]:
+        """
+        Cancel a pending invitation.
+
+        Args:
+            invitation_id: ID of invitation to cancel
+
+        Returns:
+            Updated invitation
+
+        Raises:
+            NotFoundException: If invitation not found
+            ValidationException: If already processed
+        """
+        invitation = await self._invitations_collection.find_one({
+            "_id": ObjectId(invitation_id)
+        })
+
+        if not invitation:
+            raise NotFoundException(
+                message="Invitation not found",
+                code="INVITATION_NOT_FOUND"
+            )
+
+        if invitation["status"] != "pending":
+            raise ValidationException(
+                message=f"Cannot cancel invitation with status: {invitation['status']}",
+                code="INVITATION_ALREADY_PROCESSED"
+            )
+
+        now = datetime.now(timezone.utc)
+
+        await self._invitations_collection.update_one(
+            {"_id": ObjectId(invitation_id)},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "updatedAt": now
+                }
+            }
+        )
+
+        logger.info(f"Invitation {invitation_id} cancelled")
+
+        return await self._invitations_collection.find_one({
+            "_id": ObjectId(invitation_id)
+        })
+
+    async def get_invitation_by_id(self, invitation_id: str) -> Dict[str, Any]:
+        """Get invitation by ID."""
+        invitation = await self._invitations_collection.find_one({
+            "_id": ObjectId(invitation_id)
+        })
+
+        if not invitation:
+            raise NotFoundException(
+                message="Invitation not found",
+                code="INVITATION_NOT_FOUND"
+            )
+
+        return invitation
+
     async def expire_old_invitations(self) -> int:
         """Mark expired pending invitations. Called by cron job."""
         now = datetime.now(timezone.utc)

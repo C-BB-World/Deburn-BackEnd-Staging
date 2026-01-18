@@ -144,6 +144,25 @@ async def login(
         remember_me=body.rememberMe
     )
 
+    # Check if user is an organization admin
+    from app_v2.dependencies import get_main_db
+    db = get_main_db()
+    user_id = user["_id"]
+
+    print(f"[DEBUG LOGIN] user_id: {user_id}")
+    print(f"[DEBUG LOGIN] user_id type: {type(user_id)}")
+
+    org_members_collection = db["organizationmembers"]
+    admin_membership = await org_members_collection.find_one({
+        "userId": user_id,
+        "role": "admin",
+        "status": "active"
+    })
+    print(f"[DEBUG LOGIN] Admin membership found: {admin_membership}")
+
+    is_org_admin = admin_membership is not None
+    print(f"[DEBUG LOGIN] isOrgAdmin: {is_org_admin}")
+
     return success_response({
         "user": {
             "id": str(user["_id"]),
@@ -151,6 +170,7 @@ async def login(
             "firstName": user.get("profile", {}).get("firstName"),
             "lastName": user.get("profile", {}).get("lastName"),
             "isAdmin": user.get("isAdmin", False),
+            "isOrgAdmin": is_org_admin,
         },
         "token": token,
         "expiresAt": expires_at.isoformat()
@@ -178,6 +198,34 @@ async def get_session(
 
     Returns the current authenticated user's information.
     """
+    from app_v2.dependencies import get_main_db
+
+    db = get_main_db()
+    user_id = user["_id"]
+
+    # Debug prints
+    print(f"[DEBUG] user_id: {user_id}")
+    print(f"[DEBUG] user_id type: {type(user_id)}")
+
+    # Check if user is an organization admin
+    org_members_collection = db["organizationmembers"]
+
+    # Debug: Check what's in the collection for this user
+    all_memberships = await org_members_collection.find({
+        "userId": user_id
+    }).to_list(length=10)
+    print(f"[DEBUG] All memberships for user: {all_memberships}")
+
+    admin_membership = await org_members_collection.find_one({
+        "userId": user_id,
+        "role": "admin",
+        "status": "active"
+    })
+    print(f"[DEBUG] Admin membership found: {admin_membership}")
+
+    is_org_admin = admin_membership is not None
+    print(f"[DEBUG] isOrgAdmin: {is_org_admin}")
+
     return success_response({
         "user": {
             "id": str(user["_id"]),
@@ -185,6 +233,7 @@ async def get_session(
             "firstName": user.get("profile", {}).get("firstName"),
             "lastName": user.get("profile", {}).get("lastName"),
             "isAdmin": user.get("isAdmin", False),
+            "isOrgAdmin": is_org_admin,
         }
     })
 
@@ -277,4 +326,54 @@ async def resend_verification(
     # Always return success to prevent email enumeration
     return success_response({
         "message": "If an account exists with this email, a verification link will be sent."
+    })
+
+
+@router.get("/admin-status")
+async def get_admin_status(
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Check if current user is an organization admin.
+
+    Returns admin status and list of organizations where user is admin.
+    """
+    from app_v2.dependencies import get_main_db
+
+    db = get_main_db()
+    user_id = user["_id"]
+
+    # Find organizations where user is admin
+    org_members_collection = db["organizationmembers"]
+    admin_memberships = await org_members_collection.find({
+        "userId": user_id,
+        "role": "admin",
+        "status": "active"
+    }).to_list(length=50)
+
+    if not admin_memberships:
+        return success_response({
+            "isAdmin": False,
+            "organizations": []
+        })
+
+    # Get organization details
+    org_ids = [m["organizationId"] for m in admin_memberships]
+    orgs_collection = db["organizations"]
+    organizations = await orgs_collection.find({
+        "_id": {"$in": org_ids}
+    }).to_list(length=50)
+
+    org_list = [
+        {
+            "id": str(org["_id"]),
+            "name": org.get("name", ""),
+            "domain": org.get("domain", "")
+        }
+        for org in organizations
+    ]
+
+    return success_response({
+        "isAdmin": True,
+        "organizations": org_list
     })

@@ -71,3 +71,19 @@ class Invitation(BaseModel):
     id: str
     groupName: str
     invitedBy: str
+
+
+# =============================================================================
+# Admin Request Schemas
+# =============================================================================
+
+class InviteeItem(BaseModel):
+    """Single invitee for bulk invitations."""
+    email: str
+    firstName: Optional[str] = None
+    lastName: Optional[str] = None
+
+
+class SendInvitationsRequest(BaseModel):
+    """POST /api/circles/pools/:id/invitations"""
+    invitees: List[InviteeItem]

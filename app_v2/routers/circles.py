@@ -5,12 +5,13 @@ Provides endpoints for groups, meetings, invitations, and availability.
 """
 
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app_v2.dependencies import (
     require_auth,
+    get_pool_service,
     get_group_service,
     get_meeting_service,
     get_invitation_service,
@@ -20,6 +21,7 @@ from app_v2.schemas.circles import (
     UpdateAvailabilityRequest,
     ScheduleMeetingRequest,
     UpdateAttendanceRequest,
+    SendInvitationsRequest,
 )
 from common.utils import success_response
 
@@ -308,3 +310,272 @@ async def update_meeting_attendance(
     )
 
     return success_response({"message": "Attendance updated"})
+
+
+# =============================================================================
+# Admin Endpoints (Organization Admin only)
+# =============================================================================
+
+@router.get("/pools")
+async def get_pools(
+    user: Annotated[dict, Depends(require_auth)],
+    status: Optional[str] = Query(None, description="Filter by status"),
+):
+    """
+    Get pools for organization admin.
+
+    Returns pools where the user is an organization admin.
+    """
+    from app_v2.dependencies import get_main_db
+
+    db = get_main_db()
+    user_id = user["_id"]
+
+    # Find organizations where user is admin
+    org_members = db["organizationMembers"]
+    admin_memberships = await org_members.find({
+        "userId": user_id,
+        "role": "admin",
+        "status": "active"
+    }).to_list(length=50)
+
+    if not admin_memberships:
+        return success_response({"pools": []})
+
+    org_ids = [m["organizationId"] for m in admin_memberships]
+
+    pool_service = get_pool_service()
+    all_pools = []
+
+    for org_id in org_ids:
+        pools = await pool_service.get_pools_for_organization(
+            organization_id=str(org_id),
+            status=status
+        )
+        all_pools.extend(pools)
+
+    formatted_pools = [
+        {
+            "id": str(p["_id"]),
+            "name": p.get("name", ""),
+            "status": p.get("status", "draft"),
+            "organizationId": str(p.get("organizationId")),
+            "stats": p.get("stats", {}),
+            "targetGroupSize": p.get("targetGroupSize", 4),
+            "cadence": p.get("cadence", "biweekly"),
+            "createdAt": p.get("createdAt").isoformat() if p.get("createdAt") else None,
+        }
+        for p in all_pools
+    ]
+
+    return success_response({"pools": formatted_pools})
+
+
+@router.get("/pools/{pool_id}")
+async def get_pool(
+    pool_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """Get pool details by ID."""
+    pool_service = get_pool_service()
+
+    pool = await pool_service.get_pool(pool_id)
+
+    return success_response({
+        "id": str(pool["_id"]),
+        "name": pool.get("name", ""),
+        "status": pool.get("status", "draft"),
+        "topic": pool.get("topic"),
+        "description": pool.get("description"),
+        "organizationId": str(pool.get("organizationId")),
+        "targetGroupSize": pool.get("targetGroupSize", 4),
+        "cadence": pool.get("cadence", "biweekly"),
+        "stats": pool.get("stats", {}),
+        "invitationSettings": pool.get("invitationSettings", {}),
+        "createdAt": pool.get("createdAt").isoformat() if pool.get("createdAt") else None,
+        "assignedAt": pool.get("assignedAt").isoformat() if pool.get("assignedAt") else None,
+    })
+
+
+@router.post("/pools/{pool_id}/invitations")
+async def send_pool_invitations(
+    pool_id: str,
+    body: SendInvitationsRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Send invitations to pool.
+
+    Only organization admins can send invitations.
+    """
+    invitation_service = get_invitation_service()
+    user_id = str(user["_id"])
+
+    # Convert InviteeItem to dict
+    invitees = [inv.model_dump() for inv in body.invitees]
+
+    result = await invitation_service.send_invitations(
+        pool_id=pool_id,
+        invitees=invitees,
+        invited_by=user_id
+    )
+
+    return success_response({
+        "sent": result.get("sent", []),
+        "failed": result.get("failed", []),
+        "duplicate": result.get("duplicate", [])
+    })
+
+
+@router.get("/pools/{pool_id}/invitations")
+async def get_pool_invitations(
+    pool_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+    status: Optional[str] = Query(None, description="Filter by status"),
+):
+    """Get all invitations for a pool."""
+    invitation_service = get_invitation_service()
+
+    invitations = await invitation_service.get_invitations_for_pool(
+        pool_id=pool_id,
+        status=status
+    )
+
+    formatted = [
+        {
+            "id": str(inv["_id"]),
+            "email": inv.get("email", ""),
+            "firstName": inv.get("firstName"),
+            "lastName": inv.get("lastName"),
+            "status": inv.get("status", "pending"),
+            "createdAt": inv.get("createdAt").isoformat() if inv.get("createdAt") else None,
+            "expiresAt": inv.get("expiresAt").isoformat() if inv.get("expiresAt") else None,
+        }
+        for inv in invitations
+    ]
+
+    return success_response({"invitations": formatted})
+
+
+@router.delete("/invitations/{invitation_id}")
+async def cancel_invitation(
+    invitation_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Cancel a pending invitation.
+
+    Only organization admins can cancel invitations.
+    """
+    invitation_service = get_invitation_service()
+    pool_service = get_pool_service()
+
+    # Get invitation to find pool
+    invitation = await invitation_service.get_invitation_by_id(invitation_id)
+    pool = await pool_service.get_pool(str(invitation["poolId"]))
+
+    # Verify user is org admin
+    from app_v2.dependencies import get_main_db
+
+    db = get_main_db()
+    org_members = db["organizationMembers"]
+    is_admin = await org_members.find_one({
+        "organizationId": pool["organizationId"],
+        "userId": user["_id"],
+        "role": "admin"
+    })
+
+    if not is_admin:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail={"message": "Not authorized"})
+
+    await invitation_service.cancel_invitation(invitation_id)
+
+    return success_response({"message": "Invitation cancelled"})
+
+
+@router.post("/pools/{pool_id}/assign")
+async def assign_pool_groups(
+    pool_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Assign accepted invitees to groups.
+
+    Only organization admins can trigger assignment.
+    """
+    group_service = get_group_service()
+    user_id = str(user["_id"])
+
+    result = await group_service.assign_groups(
+        pool_id=pool_id,
+        user_id=user_id
+    )
+
+    groups = result.get("groups", [])
+    formatted_groups = [
+        {
+            "id": str(g["_id"]),
+            "name": g.get("name", ""),
+            "memberCount": len(g.get("members", [])),
+        }
+        for g in groups
+    ]
+
+    return success_response({
+        "groups": formatted_groups,
+        "totalMembers": result.get("totalMembers", 0)
+    })
+
+
+@router.get("/pools/{pool_id}/groups")
+async def get_pool_groups(
+    pool_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """Get all groups for a pool."""
+    from app_v2.dependencies import get_main_db
+
+    group_service = get_group_service()
+    db = get_main_db()
+
+    groups = await group_service.get_groups_for_pool(pool_id)
+
+    # Get user info for members
+    users_collection = db["users"]
+
+    formatted_groups = []
+    for g in groups:
+        member_ids = g.get("members", [])
+
+        # Get member details
+        members = []
+        if member_ids:
+            member_docs = await users_collection.find({
+                "_id": {"$in": member_ids}
+            }).to_list(length=50)
+
+            member_map = {str(m["_id"]): m for m in member_docs}
+
+            for mid in member_ids:
+                member = member_map.get(str(mid), {})
+                profile = member.get("profile", {})
+                first_name = profile.get("firstName", "")
+                last_name = profile.get("lastName", "")
+                name = f"{first_name} {last_name}".strip() or member.get("email", "Member")
+
+                members.append({
+                    "id": str(mid),
+                    "name": name,
+                    "avatar": profile.get("avatar"),
+                })
+
+        formatted_groups.append({
+            "id": str(g["_id"]),
+            "name": g.get("name", ""),
+            "memberCount": len(member_ids),
+            "members": members,
+            "leaderId": str(g.get("leaderId")) if g.get("leaderId") else None,
+        })
+
+    return success_response({"groups": formatted_groups})
