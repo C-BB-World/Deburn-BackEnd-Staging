@@ -53,12 +53,13 @@ async def get_conversation_history(
 
     conversation = conversations[0]
 
-    # Convert messages to serializable format
+    # Convert messages to serializable format (include actions from metadata)
     messages = [
         {
             "role": msg.get("role"),
             "content": msg.get("content"),
             "timestamp": msg.get("timestamp").isoformat() if msg.get("timestamp") else None,
+            "actions": msg.get("metadata", {}).get("actions", []) if msg.get("role") == "assistant" else None,
         }
         for msg in conversation.get("messages", [])
     ]

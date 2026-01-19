@@ -103,6 +103,7 @@ async def send_message(
     async def generate():
         full_response = ""
         topics = []
+        actions = []
         commitment_info = None
         conversation_id = conversation["conversationId"]
 
@@ -113,9 +114,11 @@ async def send_message(
             conversation_history=conversation.get("messages", []),
             language=body.language,
         ):
-            # Collect full response for persistence
+            # Collect data for persistence
             if chunk.type == "text":
                 full_response += chunk.content
+            elif chunk.type == "actions":
+                actions = chunk.content or []
             elif chunk.type == "metadata":
                 topics = chunk.content.get("topics", [])
                 commitment_info = chunk.content.get("commitment")
@@ -128,14 +131,14 @@ async def send_message(
             })
             yield f"data: {data}\n\n"
 
-        # Step 4: Save assistant message (encrypted)
+        # Step 4: Save assistant message (encrypted) with actions
         await conversation_pipeline.save_message(
             db=hub_db,
             encryption_service=encryption_service,
             conversation_id=conversation_id,
             role="assistant",
             content=full_response,
-            metadata={"topics": topics, "commitment": commitment_info}
+            metadata={"topics": topics, "commitment": commitment_info, "actions": actions}
         )
 
         # Step 5: Update topics
