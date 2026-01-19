@@ -52,8 +52,6 @@ from app_v2.services.content.content_service import ContentService
 from app_v2.services.content.learning_progress_service import LearningProgressService
 
 # AI/Coach services
-from app_v2.services.coach.agent import Agent
-from app_v2.services.coach.claude_agent import ClaudeAgent
 from app_v2.services.coach.safety_checker import SafetyChecker
 from app_v2.services.coach.conversation_service import ConversationService
 from app_v2.services.coach.commitment_service import CommitmentService
@@ -61,6 +59,17 @@ from app_v2.services.coach.commitment_extractor import CommitmentExtractor
 from app_v2.services.coach.quick_reply_generator import QuickReplyGenerator
 from app_v2.services.coach.coach_service import CoachService
 from app_v2.services.coach.pattern_detector import PatternDetector
+
+# Agent system (new)
+from app_v2.agent import (
+    Agent,
+    ClaudeAgent,
+    PromptService,
+    MemoryProvider,
+    EncryptedMemory,
+    MemoryEncryptionService,
+)
+from common.ai.claude import ClaudeProvider
 
 # Progress services
 from app_v2.services.progress.stats_service import ProgressStatsService
@@ -131,6 +140,12 @@ _commitment_extractor: Optional[CommitmentExtractor] = None
 _quick_reply_generator: Optional[QuickReplyGenerator] = None
 _coach_service: Optional[CoachService] = None
 _pattern_detector: Optional[PatternDetector] = None
+
+# Agent system (new)
+_claude_provider: Optional[ClaudeProvider] = None
+_prompt_service: Optional[PromptService] = None
+_memory_encryption_service: Optional[MemoryEncryptionService] = None
+_memory_provider: Optional[MemoryProvider] = None
 
 # Progress
 _stats_service: Optional[ProgressStatsService] = None
@@ -294,18 +309,56 @@ def init_content_services(db: AsyncIOMotorDatabase) -> None:
     _learning_progress_service = LearningProgressService(db=db)
 
 
-def init_ai_services(db: AsyncIOMotorDatabase) -> None:
-    """Initialize AI coaching services."""
+def init_ai_services(
+    db: AsyncIOMotorDatabase,
+    hub_db: Optional[AsyncIOMotorDatabase] = None
+) -> None:
+    """
+    Initialize AI coaching services.
+
+    Args:
+        db: Main application database
+        hub_db: Hub database for prompts and encrypted memory (optional)
+    """
     global _agent, _safety_checker, _conversation_service, _commitment_service
     global _commitment_extractor, _quick_reply_generator, _coach_service, _pattern_detector
+    global _claude_provider, _prompt_service, _memory_encryption_service, _memory_provider
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     model = os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250514")
     max_tokens = int(os.getenv("AGENT_MAX_TOKENS", "1024"))
     daily_limit = int(os.getenv("COACH_DAILY_LIMIT", "15"))
 
-    if api_key:
-        _agent = ClaudeAgent(api_key=api_key, model=model, max_tokens=max_tokens)
+    # Initialize new agent system if hub_db and API key available
+    if api_key and hub_db:
+        # Claude provider (from common/ai/)
+        _claude_provider = ClaudeProvider(
+            api_key=api_key,
+            model=model
+        )
+
+        # Prompt service (loads from MongoDB aiprompt collection)
+        _prompt_service = PromptService(
+            db=hub_db,
+            cache_ttl=int(os.getenv("PROMPT_CACHE_TTL", "300"))
+        )
+
+        # Memory encryption
+        encryption_key = os.getenv("MEMORY_ENCRYPTION_KEY", "default-dev-key")
+        _memory_encryption_service = MemoryEncryptionService(encryption_key)
+
+        # Encrypted memory (stores in MongoDB conversations collection)
+        _memory_provider = EncryptedMemory(
+            db=hub_db,
+            encryption_service=_memory_encryption_service
+        )
+
+        # Claude agent (uses provider + prompt service)
+        _agent = ClaudeAgent(
+            provider=_claude_provider,
+            prompt_service=_prompt_service,
+            max_tokens=max_tokens
+        )
 
     _safety_checker = SafetyChecker()
     _conversation_service = ConversationService(db=db)
@@ -416,7 +469,7 @@ def init_all_services(
     init_calendar_services(db)
     init_circles_services(db, _google_calendar_service)
     init_content_services(db)
-    init_ai_services(db)
+    init_ai_services(db, hub_db)  # Pass hub_db for new agent system
     init_progress_services(db, _pattern_detector, _agent)
     init_media_services(db)
     init_organization_services(db)
@@ -696,6 +749,27 @@ def get_pattern_detector() -> PatternDetector:
     if _pattern_detector is None:
         raise RuntimeError("AI services not initialized.")
     return _pattern_detector
+
+
+def get_prompt_service() -> PromptService:
+    """Get prompt service instance."""
+    if _prompt_service is None:
+        raise RuntimeError("Agent services not initialized (requires hub_db).")
+    return _prompt_service
+
+
+def get_memory_provider() -> MemoryProvider:
+    """Get memory provider instance."""
+    if _memory_provider is None:
+        raise RuntimeError("Agent services not initialized (requires hub_db).")
+    return _memory_provider
+
+
+def get_claude_provider() -> ClaudeProvider:
+    """Get Claude provider instance."""
+    if _claude_provider is None:
+        raise RuntimeError("Agent services not initialized (requires hub_db).")
+    return _claude_provider
 
 
 # ─────────────────────────────────────────────────────────────────
