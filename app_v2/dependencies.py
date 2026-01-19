@@ -330,7 +330,7 @@ def init_ai_services(
     daily_limit = int(os.getenv("COACH_DAILY_LIMIT", "15"))
 
     # Initialize new agent system if hub_db and API key available
-    if api_key and hub_db:
+    if api_key and hub_db is not None:
         # Claude provider (from common/ai/)
         _claude_provider = ClaudeProvider(
             api_key=api_key,

@@ -165,7 +165,8 @@ class CoachService:
         full_response = ""
 
         if stream:
-            async for chunk in self._agent.generate_coaching_response(context, message, stream=True):
+            response_iterator = await self._agent.generate_coaching_response(context, message, stream=True)
+            async for chunk in response_iterator:
                 full_response += chunk
                 yield CoachResponseChunk(type="text", content=chunk)
         else:
