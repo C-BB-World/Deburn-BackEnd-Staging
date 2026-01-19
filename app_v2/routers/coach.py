@@ -11,13 +11,17 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 import json
 
+from fastapi import Response
+
 from app_v2.dependencies import (
     require_auth,
     get_coach_service,
     get_conversation_service,
     get_commitment_service,
     get_pattern_detector,
+    get_tts_service,
 )
+from app_v2.services.media.tts_service import TTSService
 from app_v2.services.coach.coach_service import CoachService
 from app_v2.services.coach.conversation_service import ConversationService
 from app_v2.services.coach.commitment_service import CommitmentService
@@ -33,6 +37,7 @@ from app_v2.schemas.coach import (
     CommitmentStatsResponse,
     PatternResultResponse,
     RecentConversationsResponse,
+    VoiceRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -242,4 +247,31 @@ async def get_patterns(
         energyChange=result.energy_change,
         lowEnergyDays=result.low_energy_days,
         sleepMoodCorrelation=result.sleep_mood_correlation
+    )
+
+
+@router.post("/voice")
+async def text_to_speech(
+    body: VoiceRequest,
+    user: Annotated[dict, Depends(require_auth)],
+    tts_service: Annotated[TTSService, Depends(get_tts_service)],
+):
+    """
+    Convert text to speech using ElevenLabs.
+
+    Returns MP3 audio stream.
+    """
+    result = await tts_service.generate_speech(
+        text=body.text,
+        voice=body.voice,
+        speed=1.0
+    )
+
+    return Response(
+        content=result["audioBuffer"],
+        media_type="audio/mpeg",
+        headers={
+            "Content-Length": str(len(result["audioBuffer"])),
+            "Cache-Control": "private, max-age=3600",
+        }
     )

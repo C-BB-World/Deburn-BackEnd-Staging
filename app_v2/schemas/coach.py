@@ -123,3 +123,10 @@ class CheckinInsightResponse(BaseModel):
 class RecentConversationsResponse(BaseModel):
     """List of recent conversations."""
     conversations: List[ConversationResponse]
+
+
+class VoiceRequest(BaseModel):
+    """Request for text-to-speech conversion."""
+    text: str = Field(..., min_length=1, max_length=3000)
+    voice: Optional[str] = Field(default="Aria")
+    language: str = Field(default="en", pattern="^(en|sv)$")
