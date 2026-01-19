@@ -18,6 +18,7 @@ from app_v2.services.coach.conversation_service import ConversationService
 from app_v2.services.coach.commitment_service import CommitmentService
 from app_v2.services.coach.commitment_extractor import CommitmentExtractor
 from app_v2.services.coach.quick_reply_generator import QuickReplyGenerator
+from app_v2.agent.actions import ActionGenerator
 from common.utils.exceptions import ValidationException
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,7 @@ class CoachService:
         commitment_service: CommitmentService,
         commitment_extractor: CommitmentExtractor,
         quick_reply_generator: QuickReplyGenerator,
+        action_generator: Optional[ActionGenerator],
         db: AsyncIOMotorDatabase,
         daily_limit: int = 15
     ):
@@ -90,6 +92,7 @@ class CoachService:
             commitment_service: For commitment tracking
             commitment_extractor: For extracting commitments
             quick_reply_generator: For quick replies
+            action_generator: For generating action recommendations
             db: Database connection
             daily_limit: Daily exchange limit
         """
@@ -99,6 +102,7 @@ class CoachService:
         self._commitment_service = commitment_service
         self._commitment_extractor = commitment_extractor
         self._quick_reply_generator = quick_reply_generator
+        self._action_generator = action_generator
         self._db = db
         self._daily_limit = daily_limit
         self._users_collection = db["users"]
@@ -207,6 +211,19 @@ class CoachService:
             await self._commitment_service.record_followup(commitment["id"])
 
         await self._increment_exchange_count(user_id)
+
+        # Generate actions based on detected topics
+        if self._action_generator:
+            actions = await self._action_generator.generate_for_topics(
+                topics=topics,
+                language=language,
+                context={"user_id": user_id}
+            )
+            if actions:
+                yield CoachResponseChunk(
+                    type="actions",
+                    content=[a.model_dump() for a in actions]
+                )
 
         quick_replies = self._quick_reply_generator.generate(
             full_response, topics, language

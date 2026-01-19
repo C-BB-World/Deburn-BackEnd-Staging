@@ -64,6 +64,49 @@ async def get_learning_content(
     return success_response({"items": items})
 
 
+@router.get("/content/{content_id}")
+async def get_content_item(
+    content_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """Get a single content item by ID."""
+    db = get_hub_db()
+    collection = db["contentitems"]
+
+    try:
+        item = await collection.find_one(
+            {"_id": ObjectId(content_id)},
+            {"audioDataEn": 0, "audioDataSv": 0}
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid content ID")
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Content not found")
+
+    content_item = {
+        "id": str(item.get("_id", "")),
+        "contentType": item.get("contentType"),
+        "category": item.get("category"),
+        "titleEn": item.get("titleEn"),
+        "titleSv": item.get("titleSv"),
+        "lengthMinutes": item.get("lengthMinutes"),
+        "audioFileEn": item.get("audioFileEn"),
+        "audioFileSv": item.get("audioFileSv"),
+        "textContentEn": item.get("textContentEn"),
+        "textContentSv": item.get("textContentSv"),
+        "videoUrl": item.get("videoUrl"),
+        "videoEmbedCode": item.get("videoEmbedCode"),
+        "videoAvailableInEn": item.get("videoAvailableInEn"),
+        "videoAvailableInSv": item.get("videoAvailableInSv"),
+        "purpose": item.get("purpose"),
+        "sortOrder": item.get("sortOrder"),
+        "hasContent": _compute_has_content(item),
+    }
+
+    return success_response({"item": content_item})
+
+
 @router.get("/content/{content_id}/audio/{language}")
 async def stream_audio(
     content_id: str,

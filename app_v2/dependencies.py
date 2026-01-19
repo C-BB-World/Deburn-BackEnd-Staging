@@ -68,6 +68,14 @@ from app_v2.agent import (
     MemoryProvider,
     EncryptedMemory,
     MemoryEncryptionService,
+    # Actions
+    ActionGenerator,
+    ActionRegistry,
+    TopicDetector,
+    StaticRetriever,
+    LearningHandler,
+    ExerciseHandler,
+    get_knowledge,
 )
 from common.ai.claude import ClaudeProvider
 
@@ -146,6 +154,7 @@ _claude_provider: Optional[ClaudeProvider] = None
 _prompt_service: Optional[PromptService] = None
 _memory_encryption_service: Optional[MemoryEncryptionService] = None
 _memory_provider: Optional[MemoryProvider] = None
+_action_generator: Optional[ActionGenerator] = None
 
 # Progress
 _stats_service: Optional[ProgressStatsService] = None
@@ -367,6 +376,20 @@ def init_ai_services(
     _quick_reply_generator = QuickReplyGenerator()
     _pattern_detector = PatternDetector(db=db)
 
+    # Initialize action generator
+    knowledge = get_knowledge()
+    retriever = StaticRetriever(knowledge=knowledge)
+    topic_detector = TopicDetector(knowledge=knowledge)
+
+    registry = ActionRegistry()
+    registry.register(LearningHandler(retriever=retriever))
+    registry.register(ExerciseHandler(retriever=retriever))
+
+    _action_generator = ActionGenerator(
+        registry=registry,
+        topic_detector=topic_detector
+    )
+
     if _agent:
         _coach_service = CoachService(
             agent=_agent,
@@ -375,6 +398,7 @@ def init_ai_services(
             commitment_service=_commitment_service,
             commitment_extractor=_commitment_extractor,
             quick_reply_generator=_quick_reply_generator,
+            action_generator=_action_generator,
             db=db,
             daily_limit=daily_limit
         )
@@ -749,6 +773,13 @@ def get_pattern_detector() -> PatternDetector:
     if _pattern_detector is None:
         raise RuntimeError("AI services not initialized.")
     return _pattern_detector
+
+
+def get_action_generator() -> ActionGenerator:
+    """Get action generator instance."""
+    if _action_generator is None:
+        raise RuntimeError("AI services not initialized.")
+    return _action_generator
 
 
 def get_prompt_service() -> PromptService:
