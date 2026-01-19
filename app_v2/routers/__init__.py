@@ -21,6 +21,7 @@ from app_v2.routers.admin import router as admin_router
 from app_v2.routers.learning import router as learning_router
 from app_v2.routers.profile import router as profile_router
 from app_v2.routers.conversations import router as conversations_router
+from app_v2.routers.feedback import router as feedback_router
 
 __all__ = [
     "auth_router",
@@ -40,4 +41,5 @@ __all__ = [
     "learning_router",
     "profile_router",
     "conversations_router",
+    "feedback_router",
 ]
