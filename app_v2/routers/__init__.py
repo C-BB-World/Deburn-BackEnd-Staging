@@ -20,6 +20,7 @@ from app_v2.routers.dashboard import router as dashboard_router
 from app_v2.routers.admin import router as admin_router
 from app_v2.routers.learning import router as learning_router
 from app_v2.routers.profile import router as profile_router
+from app_v2.routers.conversations import router as conversations_router
 
 __all__ = [
     "auth_router",
@@ -38,4 +39,5 @@ __all__ = [
     "admin_router",
     "learning_router",
     "profile_router",
+    "conversations_router",
 ]

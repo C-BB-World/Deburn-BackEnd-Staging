@@ -370,7 +370,8 @@ def init_ai_services(
         )
 
     _safety_checker = SafetyChecker()
-    _conversation_service = ConversationService(db=db)
+    # Store conversations in hub_db for centralized storage
+    _conversation_service = ConversationService(db=hub_db if hub_db is not None else db)
     _commitment_service = CommitmentService(db=db)
     _commitment_extractor = CommitmentExtractor()
     _quick_reply_generator = QuickReplyGenerator()
@@ -394,7 +395,6 @@ def init_ai_services(
         _coach_service = CoachService(
             agent=_agent,
             safety_checker=_safety_checker,
-            conversation_service=_conversation_service,
             commitment_service=_commitment_service,
             commitment_extractor=_commitment_extractor,
             quick_reply_generator=_quick_reply_generator,
@@ -801,6 +801,13 @@ def get_claude_provider() -> ClaudeProvider:
     if _claude_provider is None:
         raise RuntimeError("Agent services not initialized (requires hub_db).")
     return _claude_provider
+
+
+def get_memory_encryption_service() -> MemoryEncryptionService:
+    """Get memory encryption service instance."""
+    if _memory_encryption_service is None:
+        raise RuntimeError("Agent services not initialized (requires hub_db).")
+    return _memory_encryption_service
 
 
 # ─────────────────────────────────────────────────────────────────

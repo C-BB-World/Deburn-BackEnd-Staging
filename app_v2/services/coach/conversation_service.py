@@ -167,6 +167,23 @@ class ConversationService:
             }
         )
 
+    async def delete_all_for_user(self, user_id: str) -> int:
+        """
+        Delete all conversations for a user.
+
+        Args:
+            user_id: User's ID
+
+        Returns:
+            Number of conversations deleted
+        """
+        result = await self._conversations_collection.delete_many({
+            "userId": ObjectId(user_id)
+        })
+        deleted_count = result.deleted_count
+        logger.info(f"Deleted {deleted_count} conversations for user {user_id}")
+        return deleted_count
+
     def _format_conversation(self, conversation: Dict[str, Any]) -> Dict[str, Any]:
         """Format conversation for response."""
         return {

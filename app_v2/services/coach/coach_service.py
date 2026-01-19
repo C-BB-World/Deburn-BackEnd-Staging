@@ -1,7 +1,8 @@
 """
 Main coaching service.
 
-Orchestrates coaching conversations with safety, history, and commitments.
+Handles pure AI coaching logic. Conversation persistence is handled
+by the conversation pipeline in the router layer.
 """
 
 import logging
@@ -14,7 +15,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app_v2.services.coach.agent import Agent, CoachingContext
 from app_v2.services.coach.safety_checker import SafetyChecker
-from app_v2.services.coach.conversation_service import ConversationService
 from app_v2.services.coach.commitment_service import CommitmentService
 from app_v2.services.coach.commitment_extractor import CommitmentExtractor
 from app_v2.services.coach.quick_reply_generator import QuickReplyGenerator
@@ -74,7 +74,6 @@ class CoachService:
         self,
         agent: Agent,
         safety_checker: SafetyChecker,
-        conversation_service: ConversationService,
         commitment_service: CommitmentService,
         commitment_extractor: CommitmentExtractor,
         quick_reply_generator: QuickReplyGenerator,
@@ -85,10 +84,12 @@ class CoachService:
         """
         Initialize CoachService.
 
+        Handles pure AI coaching logic. Conversation persistence is handled
+        by the conversation pipeline in the router layer.
+
         Args:
             agent: AI agent for response generation
             safety_checker: For message safety checking
-            conversation_service: For history management
             commitment_service: For commitment tracking
             commitment_extractor: For extracting commitments
             quick_reply_generator: For quick replies
@@ -98,7 +99,6 @@ class CoachService:
         """
         self._agent = agent
         self._safety_checker = safety_checker
-        self._conversation_service = conversation_service
         self._commitment_service = commitment_service
         self._commitment_extractor = commitment_extractor
         self._quick_reply_generator = quick_reply_generator
@@ -112,19 +112,19 @@ class CoachService:
         self,
         user_id: str,
         message: str,
-        conversation_id: Optional[str] = None,
+        conversation_history: List[Dict[str, Any]],
         language: str = "en",
-        stream: bool = True
     ) -> AsyncIterator[CoachResponseChunk]:
         """
-        Send a message and get a coaching response.
+        Generate a coaching response (pure AI logic, no persistence).
+
+        Persistence is handled by the conversation pipeline in the router.
 
         Args:
             user_id: User's ID
             message: User's message
-            conversation_id: Existing conversation or None for new
+            conversation_history: Decrypted conversation history from pipeline
             language: 'en' or 'sv'
-            stream: Whether to stream response
 
         Yields:
             CoachResponseChunk objects
@@ -145,43 +145,26 @@ class CoachService:
             yield CoachResponseChunk(type="text", content=crisis_response.text)
             yield CoachResponseChunk(type="metadata", content={
                 "safetyLevel": 3,
-                "resources": crisis_response.resources
+                "resources": crisis_response.resources,
+                "topics": []
             })
             yield CoachResponseChunk(type="done", content=None)
             return
 
-        conversation = await self._conversation_service.get_or_create(
-            conversation_id, user_id
-        )
-
         due_commitments = await self._commitment_service.get_due_followups(user_id)
 
-        context = await self._build_context(
-            user_id, conversation, language, safety_result.level, due_commitments
-        )
-
-        await self._conversation_service.add_message(
-            conversation["conversationId"],
-            "user",
-            message
+        context = await self._build_context_from_history(
+            user_id, conversation_history, language, safety_result.level, due_commitments
         )
 
         full_response = ""
 
-        if stream:
-            response_iterator = await self._agent.generate_coaching_response(context, message, stream=True)
-            async for chunk in response_iterator:
-                full_response += chunk
-                yield CoachResponseChunk(type="text", content=chunk)
-        else:
-            full_response = await self._agent.generate_coaching_response(context, message, stream=False)
-            yield CoachResponseChunk(type="text", content=full_response)
+        response_iterator = await self._agent.generate_coaching_response(context, message, stream=True)
+        async for chunk in response_iterator:
+            full_response += chunk
+            yield CoachResponseChunk(type="text", content=chunk)
 
         topics = self._agent.extract_topics(message + " " + full_response)
-
-        await self._conversation_service.update_topics(
-            conversation["conversationId"], topics
-        )
 
         commitment_data = self._commitment_extractor.extract(full_response)
         commitment_info = None
@@ -190,7 +173,7 @@ class CoachService:
             topic = topics[0] if topics else "other"
             commitment = await self._commitment_service.create_commitment(
                 user_id=user_id,
-                conversation_id=conversation["conversationId"],
+                conversation_id="",  # Router will associate with conversation
                 commitment_data=commitment_data,
                 topic=topic
             )
@@ -199,13 +182,6 @@ class CoachService:
                 "commitment": commitment["commitment"],
                 "followUpDate": commitment["followUpDate"].isoformat() if commitment.get("followUpDate") else None
             }
-
-        await self._conversation_service.add_message(
-            conversation["conversationId"],
-            "assistant",
-            full_response,
-            metadata={"topics": topics, "commitment": commitment_info}
-        )
 
         for commitment in due_commitments:
             await self._commitment_service.record_followup(commitment["id"])
@@ -232,7 +208,6 @@ class CoachService:
         yield CoachResponseChunk(type="quickReplies", content=quick_replies)
 
         yield CoachResponseChunk(type="metadata", content={
-            "conversationId": conversation["conversationId"],
             "topics": topics,
             "commitment": commitment_info,
             "safetyLevel": safety_result.level
@@ -366,6 +341,41 @@ class CoachService:
             user_profile=user_profile,
             wellbeing=wellbeing or {},
             conversation_history=conversation.get("messages", []),
+            due_commitments=due_commitments,
+            safety_level=safety_level,
+            language=language
+        )
+
+    async def _build_context_from_history(
+        self,
+        user_id: str,
+        conversation_history: List[Dict[str, Any]],
+        language: str,
+        safety_level: int,
+        due_commitments: List[Dict[str, Any]]
+    ) -> CoachingContext:
+        """Build context object from conversation history."""
+        user = await self._users_collection.find_one(
+            {"_id": ObjectId(user_id)},
+            {"profile": 1, "firstName": 1, "lastName": 1}
+        )
+
+        user_profile = {}
+        if user:
+            profile = user.get("profile", {})
+            user_profile = {
+                "firstName": user.get("firstName") or profile.get("firstName"),
+                "lastName": user.get("lastName") or profile.get("lastName"),
+                "role": profile.get("role"),
+                "organization": profile.get("organization"),
+            }
+
+        wellbeing = await self._get_latest_wellbeing(user_id)
+
+        return CoachingContext(
+            user_profile=user_profile,
+            wellbeing=wellbeing or {},
+            conversation_history=conversation_history,
             due_commitments=due_commitments,
             safety_level=safety_level,
             language=language

@@ -12,20 +12,23 @@ from fastapi.responses import StreamingResponse
 import json
 
 from fastapi import Response
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app_v2.dependencies import (
     require_auth,
     get_coach_service,
-    get_conversation_service,
     get_commitment_service,
     get_pattern_detector,
     get_tts_service,
+    get_hub_db,
+    get_memory_encryption_service,
 )
 from app_v2.services.media.tts_service import TTSService
 from app_v2.services.coach.coach_service import CoachService
-from app_v2.services.coach.conversation_service import ConversationService
 from app_v2.services.coach.commitment_service import CommitmentService
 from app_v2.services.coach.pattern_detector import PatternDetector
+from app_v2.agent.memory.encryption import MemoryEncryptionService
+from app_v2.pipelines import conversation as conversation_pipeline
 from app_v2.schemas.coach import (
     SendMessageRequest,
     ConversationResponse,
@@ -74,22 +77,74 @@ async def send_message(
     body: SendMessageRequest,
     user: Annotated[dict, Depends(require_auth)],
     coach_service: Annotated[CoachService, Depends(get_coach_service)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+    encryption_service: Annotated[MemoryEncryptionService, Depends(get_memory_encryption_service)],
 ):
     """Send a message and get a streaming coaching response."""
+    user_id = str(user["_id"])
+
+    # Step 1: Get or create conversation (decrypted)
+    conversation = await conversation_pipeline.get_or_create_conversation(
+        db=hub_db,
+        encryption_service=encryption_service,
+        conversation_id=body.conversationId,
+        user_id=user_id
+    )
+
+    # Step 2: Save user message (encrypted)
+    await conversation_pipeline.save_message(
+        db=hub_db,
+        encryption_service=encryption_service,
+        conversation_id=conversation["conversationId"],
+        role="user",
+        content=body.message
+    )
 
     async def generate():
+        full_response = ""
+        topics = []
+        commitment_info = None
+        conversation_id = conversation["conversationId"]
+
+        # Step 3: Stream AI response (CoachService handles pure AI logic)
         async for chunk in coach_service.chat(
-            user_id=str(user["_id"]),
+            user_id=user_id,
             message=body.message,
-            conversation_id=body.conversationId,
+            conversation_history=conversation.get("messages", []),
             language=body.language,
-            stream=True
         ):
+            # Collect full response for persistence
+            if chunk.type == "text":
+                full_response += chunk.content
+            elif chunk.type == "metadata":
+                topics = chunk.content.get("topics", [])
+                commitment_info = chunk.content.get("commitment")
+                # Add conversationId to metadata for frontend
+                chunk.content["conversationId"] = conversation_id
+
             data = json.dumps({
                 "type": chunk.type,
                 "content": chunk.content
             })
             yield f"data: {data}\n\n"
+
+        # Step 4: Save assistant message (encrypted)
+        await conversation_pipeline.save_message(
+            db=hub_db,
+            encryption_service=encryption_service,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=full_response,
+            metadata={"topics": topics, "commitment": commitment_info}
+        )
+
+        # Step 5: Update topics
+        if topics:
+            await conversation_pipeline.update_topics(
+                db=hub_db,
+                conversation_id=conversation_id,
+                topics=topics
+            )
 
     return StreamingResponse(
         generate(),
@@ -122,11 +177,14 @@ async def get_starters(
 @router.get("/conversations", response_model=RecentConversationsResponse)
 async def get_recent_conversations(
     user: Annotated[dict, Depends(require_auth)],
-    conversation_service: Annotated[ConversationService, Depends(get_conversation_service)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+    encryption_service: Annotated[MemoryEncryptionService, Depends(get_memory_encryption_service)],
     limit: int = Query(10, ge=1, le=50),
 ):
     """Get recent conversations."""
-    conversations = await conversation_service.get_recent_conversations(
+    conversations = await conversation_pipeline.get_recent_conversations(
+        db=hub_db,
+        encryption_service=encryption_service,
         user_id=str(user["_id"]),
         limit=limit
     )
@@ -140,15 +198,18 @@ async def get_recent_conversations(
 async def get_conversation(
     conversation_id: str,
     user: Annotated[dict, Depends(require_auth)],
-    conversation_service: Annotated[ConversationService, Depends(get_conversation_service)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+    encryption_service: Annotated[MemoryEncryptionService, Depends(get_memory_encryption_service)],
 ):
     """Get a specific conversation."""
-    conversation = await conversation_service.get_conversation(conversation_id)
+    conversation = await conversation_pipeline.get_conversation(
+        db=hub_db,
+        encryption_service=encryption_service,
+        conversation_id=conversation_id,
+        user_id=str(user["_id"])
+    )
 
     if not conversation:
-        return None
-
-    if conversation["userId"] != str(user["_id"]):
         return None
 
     return _format_conversation(conversation)
