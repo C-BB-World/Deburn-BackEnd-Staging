@@ -12,6 +12,7 @@ from fastapi import Depends, Request, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from common.auth.firebase_auth import FirebaseAuth
+from common.database import mongodb as mongodb_module
 
 # Auth services
 from app_v2.services.auth.device_detector import DeviceDetector
@@ -491,6 +492,22 @@ def init_all_services(
     """
     global _main_db
     _main_db = db
+
+    # Set centralized database singletons (common/database/mongodb.py)
+    # This allows code to use either dependencies.get_main_db() or
+    # common.database.get_main_db() interchangeably
+    main_mongodb = mongodb_module.MongoDB()
+    main_mongodb._client = db.client
+    main_mongodb._database_name = db.name
+    main_mongodb._initialized = True
+    mongodb_module.set_main_database(main_mongodb)
+
+    if hub_db is not None:
+        hub_mongodb = mongodb_module.MongoDB()
+        hub_mongodb._client = hub_db.client
+        hub_mongodb._database_name = hub_db.name
+        hub_mongodb._initialized = True
+        mongodb_module.set_hub_database(hub_mongodb)
 
     init_auth_services(db, firebase_credentials_path, firebase_credentials_dict, geoip_database_path)
     init_user_services(db)

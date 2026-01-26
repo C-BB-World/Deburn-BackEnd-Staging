@@ -10,8 +10,8 @@ from datetime import datetime, timezone
 from typing import Dict, Any
 
 from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app_v2.database import get_userpreferences_collection
 from app_v2.schemas.user import VALID_VOICES
 from common.utils.exceptions import ValidationException
 
@@ -23,21 +23,17 @@ DEFAULT_COACH_PREFERENCES = {
 }
 
 
-async def get_preferences_pipeline(
-    db: AsyncIOMotorDatabase,
-    user_id: str
-) -> Dict[str, Any]:
+async def get_preferences_pipeline(user_id: str) -> Dict[str, Any]:
     """
     Get user's coach preferences from userpreferences collection.
 
     Args:
-        db: MongoDB database connection
         user_id: User's MongoDB ObjectId as string
 
     Returns:
         Dict with coachPreferences
     """
-    collection = db["userpreferences"]
+    collection = get_userpreferences_collection()
 
     doc = await collection.find_one(
         {"userId": ObjectId(user_id)},
@@ -59,7 +55,6 @@ async def get_preferences_pipeline(
 
 
 async def update_preferences_pipeline(
-    db: AsyncIOMotorDatabase,
     user_id: str,
     coach_preferences: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -67,7 +62,6 @@ async def update_preferences_pipeline(
     Update user's coach preferences in userpreferences collection.
 
     Args:
-        db: MongoDB database connection
         user_id: User's MongoDB ObjectId as string
         coach_preferences: Dict with preference fields to update
 
@@ -77,7 +71,7 @@ async def update_preferences_pipeline(
     Raises:
         ValidationException: If voice is invalid
     """
-    collection = db["userpreferences"]
+    collection = get_userpreferences_collection()
 
     # Validate voice if provided
     if "voice" in coach_preferences:
@@ -111,4 +105,29 @@ async def update_preferences_pipeline(
     logger.info(f"Updated coach preferences for user {user_id}: {list(coach_preferences.keys())}")
 
     # Return updated preferences
-    return await get_preferences_pipeline(db, user_id)
+    return await get_preferences_pipeline(user_id)
+
+
+async def create_default_preferences(user_id: str) -> Dict[str, Any]:
+    """
+    Create default preferences for a new user.
+
+    Args:
+        user_id: User's MongoDB ObjectId as string
+
+    Returns:
+        Dict with created coachPreferences
+    """
+    collection = get_userpreferences_collection()
+    now = datetime.now(timezone.utc)
+
+    await collection.insert_one({
+        "userId": ObjectId(user_id),
+        "coachPreferences": DEFAULT_COACH_PREFERENCES.copy(),
+        "createdAt": now,
+        "updatedAt": now
+    })
+
+    logger.info(f"Created default preferences for user {user_id}")
+
+    return {"coachPreferences": DEFAULT_COACH_PREFERENCES.copy()}

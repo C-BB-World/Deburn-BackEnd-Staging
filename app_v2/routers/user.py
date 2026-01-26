@@ -14,7 +14,6 @@ from app_v2.dependencies import (
     get_user_service,
     get_profile_service,
     get_consent_service,
-    get_main_db,
 )
 from app_v2.services.user.user_service import UserService
 from app_v2.services.user.profile_service import ProfileService
@@ -181,9 +180,7 @@ async def get_preferences(
 
     Returns coachPreferences including voice setting.
     """
-    db = get_main_db()
     result = await preferences_pipelines.get_preferences_pipeline(
-        db=db,
         user_id=str(user["_id"])
     )
 
@@ -200,9 +197,7 @@ async def update_preferences(
 
     Updates voice and other coach-related settings.
     """
-    db = get_main_db()
     result = await preferences_pipelines.update_preferences_pipeline(
-        db=db,
         user_id=str(user["_id"]),
         coach_preferences=body.coachPreferences.model_dump()
     )

@@ -23,13 +23,13 @@ from datetime import datetime, timezone
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Load environment variables
 load_dotenv()
 
-# Default preferences
+# Default preferences (must match app_v2/pipelines/preferences.py)
 DEFAULT_COACH_PREFERENCES = {
     "voice": "Alice"
 }
