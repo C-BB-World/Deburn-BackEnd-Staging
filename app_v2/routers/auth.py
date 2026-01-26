@@ -51,24 +51,39 @@ async def register(
     """
     from fastapi import HTTPException
 
+    print(f"[REGISTER] Starting registration for email: {body.email}")
+
     # Validate password confirmation
     if body.password != body.passwordConfirm:
+        print(f"[REGISTER] Password mismatch for: {body.email}")
         raise HTTPException(status_code=400, detail={"message": "Passwords do not match"})
 
     user_service = get_user_service()
     firebase_auth = get_firebase_auth()
 
+    # Check if email already exists in MongoDB BEFORE creating Firebase user
+    print(f"[REGISTER] Checking if email exists in MongoDB: {body.email}")
+    existing_user = await user_service.get_user_by_email(body.email)
+    if existing_user:
+        print(f"[REGISTER] Email already exists in MongoDB: {body.email}")
+        raise HTTPException(status_code=400, detail={"message": "An account with this email already exists"})
+    print(f"[REGISTER] Email not found in MongoDB, proceeding: {body.email}")
+
     try:
         # Create user in Firebase (Admin SDK)
+        print(f"[REGISTER] Creating Firebase user: {body.email}")
         firebase_uid = await firebase_auth.create_user(
             email=body.email,
             password=body.password,
             display_name=f"{body.firstName} {body.lastName}"
         )
+        print(f"[REGISTER] Firebase user created with UID: {firebase_uid}")
     except ValueError as e:
+        print(f"[REGISTER] Firebase creation failed: {e}")
         raise HTTPException(status_code=400, detail={"message": str(e)})
 
     # Create user in database
+    print(f"[REGISTER] Creating user in MongoDB: {body.email}")
     user = await user_service.create_user(
         firebase_uid=firebase_uid,
         email=body.email,
@@ -85,16 +100,21 @@ async def register(
             {"type": "marketing", "accepted": body.consents.marketing, "version": "1.0"},
         ],
     )
+    print(f"[REGISTER] MongoDB user created with ID: {user['_id']}")
 
     # Create default user preferences
     try:
+        print(f"[REGISTER] Creating default preferences for user: {user['_id']}")
         await preferences_pipelines.create_default_preferences(str(user["_id"]))
+        print(f"[REGISTER] Default preferences created for user: {user['_id']}")
     except Exception as e:
         # Log but don't fail registration if preferences creation fails
+        print(f"[REGISTER] Failed to create default preferences: {e}")
         logger.warning(f"Failed to create default preferences: {e}")
 
     # Send verification email
     try:
+        print(f"[REGISTER] Sending verification email to: {body.email}")
         verification_link = await firebase_auth.send_verification_email(body.email)
         email_service = EmailService()
         await email_service.send_verification_email(
@@ -102,10 +122,13 @@ async def register(
             verification_link=verification_link,
             user_name=body.firstName,
         )
+        print(f"[REGISTER] Verification email sent to: {body.email}")
     except Exception as e:
         # Log but don't fail registration if email fails
+        print(f"[REGISTER] Failed to send verification email: {e}")
         logger.warning(f"Failed to send verification email: {e}")
 
+    print(f"[REGISTER] Registration complete for: {body.email}")
     return success_response({
         "message": "Registration successful. Please verify your email."
     })
