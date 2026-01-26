@@ -1,7 +1,7 @@
 """
 FastAPI router for User system endpoints.
 
-Provides endpoints for profile management, consents, and account deletion.
+Provides endpoints for profile management, consents, preferences, and account deletion.
 """
 
 import logging
@@ -14,6 +14,7 @@ from app_v2.dependencies import (
     get_user_service,
     get_profile_service,
     get_consent_service,
+    get_main_db,
 )
 from app_v2.services.user.user_service import UserService
 from app_v2.services.user.profile_service import ProfileService
@@ -28,8 +29,12 @@ from app_v2.schemas.user import (
     DeleteAccountRequest,
     DeleteAccountResponse,
     CancelDeletionResponse,
+    CoachPreferencesResponse,
+    CoachPreferencesUpdateRequest,
 )
 from app_v2.pipelines import user as pipelines
+from app_v2.pipelines import preferences as preferences_pipelines
+from common.utils import success_response
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +170,41 @@ async def cancel_deletion(
     )
 
     return CancelDeletionResponse()
+
+
+@router.get("/preferences")
+async def get_preferences(
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Get current user's coach preferences.
+
+    Returns coachPreferences including voice setting.
+    """
+    db = get_main_db()
+    result = await preferences_pipelines.get_preferences_pipeline(
+        db=db,
+        user_id=str(user["_id"])
+    )
+
+    return success_response(result)
+
+
+@router.patch("/preferences")
+async def update_preferences(
+    body: CoachPreferencesUpdateRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Update current user's coach preferences.
+
+    Updates voice and other coach-related settings.
+    """
+    db = get_main_db()
+    result = await preferences_pipelines.update_preferences_pipeline(
+        db=db,
+        user_id=str(user["_id"]),
+        coach_preferences=body.coachPreferences.model_dump()
+    )
+
+    return success_response(result)

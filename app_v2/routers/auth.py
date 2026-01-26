@@ -68,7 +68,7 @@ async def register(
         raise HTTPException(status_code=400, detail={"message": str(e)})
 
     # Create user in database
-    await user_service.create_user(
+    user = await user_service.create_user(
         firebase_uid=firebase_uid,
         email=body.email,
         organization=body.organization,
@@ -84,6 +84,24 @@ async def register(
             {"type": "marketing", "accepted": body.consents.marketing, "version": "1.0"},
         ],
     )
+
+    # Create default user preferences
+    try:
+        from app_v2.dependencies import get_main_db
+        from datetime import datetime, timezone
+        db = get_main_db()
+        now = datetime.now(timezone.utc)
+        await db["userpreferences"].insert_one({
+            "userId": user["_id"],
+            "coachPreferences": {
+                "voice": "Alice"
+            },
+            "createdAt": now,
+            "updatedAt": now
+        })
+    except Exception as e:
+        # Log but don't fail registration if preferences creation fails
+        logger.warning(f"Failed to create default preferences: {e}")
 
     # Send verification email
     try:

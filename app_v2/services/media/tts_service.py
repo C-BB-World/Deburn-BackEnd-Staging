@@ -26,16 +26,20 @@ VOICE_MAPPINGS = {
     "Ana-Rita": "wJqPPQ618aTW29mptyoc",
     "Andromeda": "HoU1B9WLbSprzhhX34v0",
     "LavenderLessons": "cL2JBnZF7ILVaQ86EQMQ",
-    # Standard voices
+    # High pitch voices
     "Sarah": "EXAVITQu4vr4xnSDxMaL",
     "Laura": "FGY2WhTYpPnrIDTdsKH5",
     "Alice": "Xb7hH8MSUJpSbSDYk0k2",
     "Matilda": "XrExE9yKIg1WjnnlVkGX",
     "Jessica": "cgSgspJ2msm6clMCkdW9",
     "Lily": "pFZP5JQG7iQjIQuC4Bku",
+    # Low pitch voices
     "Roger": "CwhRBWXzGAHq8TQ4Fs17",
     "Charlie": "IKne3meq5aSn9XLyUdCD",
     "George": "JBFqnCBsd6RMkjVDRZzb",
+    "Callum": "N2lVS1w4EtoT3dr4eOWO",
+    "Liam": "TX3LPaxmHKxFdv7VOQHJ",
+    "Daniel": "onwK4e9ZLuTAKqWW03F9",
 }
 
 

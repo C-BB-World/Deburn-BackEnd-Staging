@@ -91,3 +91,27 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Valid voice options for TTS
+VALID_VOICES = [
+    # High pitch
+    "Aria", "Sarah", "Laura", "Alice", "Matilda", "Jessica", "Lily",
+    # Low pitch
+    "Roger", "Charlie", "George", "Callum", "Liam", "Daniel"
+]
+
+
+class CoachPreferences(BaseModel):
+    """Coach preferences for the user."""
+    voice: str = Field(default="Alice", description="TTS voice name")
+
+
+class CoachPreferencesResponse(BaseModel):
+    """Response for getting coach preferences."""
+    coachPreferences: CoachPreferences
+
+
+class CoachPreferencesUpdateRequest(BaseModel):
+    """Request body for updating coach preferences."""
+    coachPreferences: CoachPreferences
