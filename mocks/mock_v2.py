@@ -2173,7 +2173,7 @@ async def get_admin_stats(authorization: Optional[str] = Header(None)):
         "totalUsers": 150,
         "activeUsers": 87,
         "totalCheckins": 4523,
-        "totalSessions": 892,
+        "totalSessions": 892
     })
 
 

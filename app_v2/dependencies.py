@@ -338,18 +338,22 @@ def init_ai_services(
     max_tokens = int(os.getenv("AGENT_MAX_TOKENS", "1024"))
     daily_limit = int(os.getenv("COACH_DAILY_LIMIT", "15"))
 
-    # Initialize new agent system if hub_db and API key available
-    if api_key and hub_db is not None:
+    # Initialize new agent system if API key available
+    prompt_source = os.getenv("AI_PROMPT_SOURCE", "aiprompt")
+
+    if api_key:
         # Claude provider (from common/ai/)
         _claude_provider = ClaudeProvider(
             api_key=api_key,
             model=model
         )
 
-        # Prompt service (loads from MongoDB aiprompt collection)
+        # Prompt service (loads from MongoDB or files based on AI_PROMPT_SOURCE)
         _prompt_service = PromptService(
-            db=hub_db,
-            cache_ttl=int(os.getenv("PROMPT_CACHE_TTL", "300"))
+            db=hub_db if prompt_source == "aiprompt" else None,
+            cache_ttl=int(os.getenv("PROMPT_CACHE_TTL", "300")),
+            source=prompt_source,
+            prompts_dir=os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts", "system")
         )
 
         # Memory encryption
@@ -357,10 +361,12 @@ def init_ai_services(
         _memory_encryption_service = MemoryEncryptionService(encryption_key)
 
         # Encrypted memory (stores in MongoDB conversations collection)
-        _memory_provider = EncryptedMemory(
-            db=hub_db,
-            encryption_service=_memory_encryption_service
-        )
+        # Requires hub_db for conversation storage
+        if hub_db is not None:
+            _memory_provider = EncryptedMemory(
+                db=hub_db,
+                encryption_service=_memory_encryption_service
+            )
 
         # Claude agent (uses provider + prompt service)
         _agent = ClaudeAgent(

@@ -348,19 +348,34 @@ class Agent(ABC):
 ```python
 class PromptService:
     """
-    Loads and caches prompts from MongoDB 'aiprompt' collection.
+    Loads and caches prompts from MongoDB or local files.
     Supports English and Swedish.
+    Source is configurable via AI_PROMPT_SOURCE environment variable.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    SEPARATOR = "\n\n---\n\n"
+    COMPONENTS = ["base-coach", "safety-rules", "tone-guidelines"]
+
+    def __init__(
+        self,
+        db: Optional[AsyncIOMotorDatabase] = None,
+        cache_ttl: int = 300,
+        source: str = "aiprompt",
+        prompts_dir: Optional[str] = None
+    ):
         """
         Args:
-            db: MongoDB database connection (deburn-hub)
+            db: MongoDB database connection (required for "aiprompt" source)
+            cache_ttl: Cache TTL in seconds (default 5 minutes)
+            source: "aiprompt" for MongoDB or "file" for local files
+            prompts_dir: Directory for prompt files (default: prompts/system/)
         """
         self._db = db
-        self._collection = db["aiprompt"]
-        self._cache: Dict[str, CachedPrompt] = {}  # In-memory cache
-        self._cache_ttl = 300  # 5 minutes
+        self._collection = db["aiprompt"] if db is not None else None
+        self._cache: Dict[str, CachedPrompt] = {}
+        self._cache_ttl = cache_ttl
+        self._source = source
+        self._prompts_dir = prompts_dir
 
     async def get_system_prompt(
         self,
@@ -368,21 +383,94 @@ class PromptService:
         language: str = "en"
     ) -> str:
         """
-        Get prompt from MongoDB or cache.
+        Get prompt from configured source or cache.
+
+        For 'coaching' type, combines components:
+        1. base-coach.md
+        2. safety-rules.md
+        3. tone-guidelines.md
+
+        Components are joined with "\n\n---\n\n" separator.
 
         Args:
             prompt_type: Type of prompt to retrieve
             language: 'en' or 'sv'
 
         Returns:
-            System prompt string
+            Combined system prompt string
         """
+
+    def _load_from_files(self, language: str) -> Optional[str]:
+        """Load and combine prompts from local markdown files."""
+
+    async def _load_and_combine_components(
+        self,
+        prompt_type: str,
+        language: str
+    ) -> Optional[str]:
+        """Load and combine prompts from MongoDB."""
 
     async def refresh_cache(self) -> None:
         """Force refresh all cached prompts."""
 
-    async def get_all_prompts(self) -> Dict[str, Dict[str, str]]:
-        """Get all prompts (for admin UI)."""
+    async def get_all_components(self, prompt_type: str) -> List[Dict[str, Any]]:
+        """Get all components for a prompt type (for admin UI)."""
+
+    async def update_component(
+        self,
+        prompt_type: str,
+        component: str,
+        language: str,
+        content: str,
+        author: str = "system"
+    ) -> bool:
+        """Update a component's content (works for both sources)."""
+```
+
+#### Prompt Sources
+
+The `AI_PROMPT_SOURCE` environment variable controls where prompts are loaded from:
+
+| Source | Description | Use Case |
+|--------|-------------|----------|
+| `aiprompt` | MongoDB `aiprompt` collection (default) | Production - dynamic updates via Hub |
+| `file` | Local markdown files | Development - edit files directly |
+
+**File Structure (for `file` source):**
+
+```
+prompts/system/
+├── en/
+│   ├── base-coach.md        # Core coaching personality
+│   ├── safety-rules.md      # Safety constraints
+│   └── tone-guidelines.md   # Communication style
+└── sv/
+    ├── base-coach.md        # Swedish version
+    ├── safety-rules.md
+    └── tone-guidelines.md
+```
+
+**MongoDB Structure (for `aiprompt` source):**
+
+```python
+# Collection: aiprompt (deburn-hub database)
+{
+    "_id": ObjectId,
+    "promptType": "coaching",
+    "component": "base-coach",      # Component name
+    "isActive": True,
+    "order": 1,                     # Sort order for combining
+    "content": {
+        "en": "English prompt text...",
+        "sv": "Swedish prompt text..."
+    },
+    "version": 2,
+    "metadata": {
+        "lastEditedBy": "admin"
+    },
+    "createdAt": datetime,
+    "updatedAt": datetime
+}
 ```
 
 #### ClaudeAgent
@@ -489,16 +577,21 @@ class OpenAIAgent(Agent):
 
 ```python
 # Collection: aiprompt (deburn-hub database)
+# Component-based structure - multiple documents combined at runtime
 {
     "_id": ObjectId,
-    "promptType": str,          # "coaching" | "checkin_insight" | "recommendation"
-    "language": str,            # "en" | "sv"
-    "content": str,             # The actual prompt text
-    "version": int,             # For versioning/rollback
+    "promptType": str,          # "coaching" (others: "checkin_insight", "recommendation")
+    "component": str,           # "base-coach" | "safety-rules" | "tone-guidelines"
+    "order": int,               # Sort order for combining (1, 2, 3...)
     "isActive": bool,           # Only active prompts are used
+    "content": {
+        "en": str,              # English prompt text
+        "sv": str               # Swedish prompt text
+    },
+    "version": int,             # For versioning/rollback
     "metadata": {
-        "author": str,          # Who last edited
-        "description": str,     # What this prompt does
+        "lastEditedBy": str,    # Who last edited
+        "description": str,     # What this component does
     },
     "createdAt": datetime,
     "updatedAt": datetime
@@ -506,7 +599,17 @@ class OpenAIAgent(Agent):
 ```
 
 **Index:**
-- `{ promptType: 1, language: 1, isActive: 1 }` - Unique for active prompts
+- `{ promptType: 1, component: 1, isActive: 1 }` - Unique for active components
+
+**Current Components (promptType: "coaching"):**
+
+| Order | Component | Description |
+|-------|-----------|-------------|
+| 1 | `base-coach` | Core coaching personality, instructions, and behavior |
+| 2 | `safety-rules` | Safety boundaries, escalation protocols, crisis response |
+| 3 | `tone-guidelines` | Voice, communication style, formatting rules |
+
+Components are combined with `"\n\n---\n\n"` separator to form the complete system prompt.
 
 ### Initial Prompts (English)
 
@@ -1228,9 +1331,17 @@ AGENT_MAX_TOKENS = 1024
 # Memory encryption
 MEMORY_ENCRYPTION_KEY = "..."          # 32-byte hex or any string (SHA256 hashed)
 
-# Prompt caching
+# Prompt configuration
+AI_PROMPT_SOURCE = "aiprompt"          # "aiprompt" (MongoDB) or "file" (local files)
 PROMPT_CACHE_TTL = 300                 # 5 minutes
 ```
+
+### Prompt Source Options
+
+| Value | Source | Description |
+|-------|--------|-------------|
+| `aiprompt` | MongoDB | Load from `deburn-hub.aiprompt` collection. Supports hot-reload via Hub admin. |
+| `file` | Filesystem | Load from `prompts/system/{lang}/*.md`. Requires restart for changes. |
 
 ---
 
@@ -1337,7 +1448,7 @@ def init_agent_services(db: AsyncIOMotorDatabase) -> None:
 | `Agent` | `agent.py` | Abstract AI interface |
 | `ClaudeAgent` | `claude_agent.py` | Claude implementation (uses `ClaudeProvider`) |
 | `OpenAIAgent` | `openai_agent.py` | OpenAI implementation (uses `OpenAIProvider`) |
-| `PromptService` | `prompt_service.py` | Dynamic prompts from MongoDB |
+| `PromptService` | `prompt_service.py` | Dynamic prompts from MongoDB or files (via `AI_PROMPT_SOURCE`) |
 | `CoachingContext` | `types.py` | Context dataclass |
 | **Actions** | | |
 | `Action` | `actions/base.py` | Universal action schema |

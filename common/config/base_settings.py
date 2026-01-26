@@ -56,6 +56,7 @@ class BaseAppSettings(BaseSettings):
     # AI Settings
     # ==========================================================================
     AI_PROVIDER: str = "claude"  # "claude" or "openai"
+    AI_PROMPT_SOURCE: str = "aiprompt"  # "aiprompt" (MongoDB) or "file" (local files)
 
     # Claude Settings (used when AI_PROVIDER = "claude")
     CLAUDE_API_KEY: Optional[str] = None
