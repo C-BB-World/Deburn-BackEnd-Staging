@@ -33,7 +33,8 @@ class EmailService:
         mode: Optional[str] = None,
         resend_api_key: Optional[str] = None,
         from_email: Optional[str] = None,
-        from_name: str = "Deburn",
+        from_name: str = "Human First AI",
+        team_name: Optional[str] = None,
         app_url: Optional[str] = None,
         smtp_host: Optional[str] = None,
         smtp_port: Optional[int] = None,
@@ -48,6 +49,7 @@ class EmailService:
             resend_api_key: Resend API key (default from RESEND_API_KEY env var)
             from_email: Sender email address
             from_name: Sender display name
+            team_name: Team name for email signatures
             app_url: Base URL for links in emails
             smtp_host: SMTP server host
             smtp_port: SMTP server port
@@ -56,7 +58,8 @@ class EmailService:
         """
         self._mode = mode or os.environ.get("EMAIL_MODE", "console")
         self._from_email = from_email or os.environ.get("SMTP_FROM_EMAIL", "noreply@example.com")
-        self._from_name = from_name or os.environ.get("SMTP_FROM_NAME", "Deburn")
+        self._from_name = from_name or os.environ.get("SMTP_FROM_NAME", "Human First AI")
+        self._team_name = team_name or os.environ.get("EMAIL_TEAM_NAME", "The Human First AI Team")
         self._app_url = app_url or os.environ.get("APP_URL", "http://localhost:3000")
 
         # Resend API key (can use SMTP_PASSWORD as fallback for existing configs)
@@ -127,7 +130,7 @@ class EmailService:
         <p style="word-break: break-all; color: #666;">{verification_link}</p>
         <p>If you didn't create an account, you can safely ignore this email.</p>
         <div class="footer">
-            <p>Best regards,<br>The Deburn Team</p>
+            <p>Best regards,<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -146,7 +149,7 @@ Thanks for signing up! Please verify your email address by clicking the link bel
 If you didn't create an account, you can safely ignore this email.
 
 Best regards,
-The Deburn Team
+{self._team_name}
 """
 
         return await self._send(
@@ -241,7 +244,7 @@ The Deburn Team
         <p style="word-break: break-all; color: #667eea; font-size: 14px;">{accept_link}</p>
         {expiry_html}
         <div class="footer">
-            <p>Best regards,<br>The Deburn Team</p>
+            <p>Best regards,<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -263,7 +266,7 @@ Decline the invitation: {decline_link}
 {expiry_text}
 
 Best regards,
-The Deburn Team
+{self._team_name}
 """
 
         return await self._send(
@@ -315,7 +318,7 @@ The Deburn Team
         <p style="word-break: break-all; color: #666;">{reset_link}</p>
         <p>If you didn't request a password reset, you can safely ignore this email.</p>
         <div class="footer">
-            <p>Best regards,<br>The Deburn Team</p>
+            <p>Best regards,<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -334,7 +337,7 @@ We received a request to reset your password. Click the link below to create a n
 If you didn't request a password reset, you can safely ignore this email.
 
 Best regards,
-The Deburn Team
+{self._team_name}
 """
 
         return await self._send(
