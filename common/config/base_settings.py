@@ -80,6 +80,11 @@ class BaseAppSettings(BaseSettings):
     CORS_ALLOW_CREDENTIALS: bool = True
 
     # ==========================================================================
+    # Insight Settings
+    # ==========================================================================
+    INSIGHT_LOOKBACK_DAYS: int = 7  # Days of history for insight generation
+
+    # ==========================================================================
     # Internationalization
     # ==========================================================================
     DEFAULT_LANGUAGE: str = "en"

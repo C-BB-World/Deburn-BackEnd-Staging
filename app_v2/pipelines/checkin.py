@@ -52,10 +52,16 @@ async def submit_checkin_pipeline(
         try:
             expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
+            # Build descriptions with tip included
+            description_en = f"{insight_data['insight']}\n\nTip: {insight_data['tip']}"
+            description_sv = None
+            if insight_data.get("insightSv") and insight_data.get("tipSv"):
+                description_sv = f"{insight_data['insightSv']}\n\nTips: {insight_data['tipSv']}"
+
             await insight_service.update_or_create_checkin_insight(
                 user_id=user_id,
                 title="Today's Check-in Insight",
-                description=f"{insight_data['insight']}\n\nTip: {insight_data['tip']}",
+                description=description_en,
                 metrics={
                     "mood": metrics.get("mood"),
                     "physicalEnergy": metrics.get("physicalEnergy"),
@@ -63,7 +69,9 @@ async def submit_checkin_pipeline(
                     "sleep": metrics.get("sleep"),
                     "stress": metrics.get("stress"),
                 },
-                expires_at=expires_at
+                expires_at=expires_at,
+                title_sv="Dagens incheckningsinsikt",
+                description_sv=description_sv
             )
         except Exception as e:
             # Don't fail check-in if insight persistence fails
@@ -72,7 +80,9 @@ async def submit_checkin_pipeline(
     return {
         "streak": streak,
         "insight": insight_data["insight"],
-        "tip": insight_data["tip"]
+        "insightSv": insight_data.get("insightSv", ""),
+        "tip": insight_data["tip"],
+        "tipSv": insight_data.get("tipSv", "")
     }
 
 

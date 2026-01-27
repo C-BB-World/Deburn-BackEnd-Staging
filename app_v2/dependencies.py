@@ -512,11 +512,11 @@ def init_all_services(
     init_auth_services(db, firebase_credentials_path, firebase_credentials_dict, geoip_database_path)
     init_user_services(db)
     init_i18n_services(db)
-    init_checkin_services(db)
     init_calendar_services(db)
     init_circles_services(db, _google_calendar_service)
     init_content_services(db)
     init_ai_services(db, hub_db)  # Pass hub_db for new agent system
+    init_checkin_services(db, _claude_provider)  # Pass AI client for insight generation
     init_progress_services(db, _pattern_detector, _agent)
     init_media_services(db)
     init_organization_services(db)

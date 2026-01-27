@@ -183,7 +183,9 @@ class InsightService:
         title: str,
         description: str,
         metrics: Dict[str, Any],
-        expires_at: datetime
+        expires_at: datetime,
+        title_sv: Optional[str] = None,
+        description_sv: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create or update today's check-in insight.
@@ -193,10 +195,12 @@ class InsightService:
 
         Args:
             user_id: User ID
-            title: Display title
-            description: Insight text with tip
+            title: Display title (English)
+            description: Insight text with tip (English)
             metrics: Check-in metrics (mood, energy, sleep, stress)
             expires_at: Expiration datetime
+            title_sv: Display title (Swedish)
+            description_sv: Insight text with tip (Swedish)
 
         Returns:
             Created or updated insight document
@@ -213,18 +217,22 @@ class InsightService:
 
         if existing:
             # Update existing insight
+            update_fields = {
+                "title": title[:100],
+                "description": description[:500],
+                "metrics": metrics,
+                "expiresAt": expires_at,
+                "isRead": False,
+                "updatedAt": now
+            }
+            if title_sv:
+                update_fields["titleSv"] = title_sv[:100]
+            if description_sv:
+                update_fields["descriptionSv"] = description_sv[:500]
+
             result = await self._insights_collection.find_one_and_update(
                 {"_id": existing["_id"]},
-                {
-                    "$set": {
-                        "title": title[:100],
-                        "description": description[:500],
-                        "metrics": metrics,
-                        "expiresAt": expires_at,
-                        "isRead": False,
-                        "updatedAt": now
-                    }
-                },
+                {"$set": update_fields},
                 return_document=True
             )
             logger.info(f"Updated check-in insight for user {user_id}")
@@ -243,12 +251,42 @@ class InsightService:
             "createdAt": now,
             "updatedAt": now
         }
+        if title_sv:
+            insight_doc["titleSv"] = title_sv[:100]
+        if description_sv:
+            insight_doc["descriptionSv"] = description_sv[:500]
 
         result = await self._insights_collection.insert_one(insight_doc)
         insight_doc["_id"] = result.inserted_id
 
         logger.info(f"Created check-in insight for user {user_id}")
         return self._format_insight(insight_doc)
+
+    async def get_todays_checkin_insight(
+        self,
+        user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get today's check-in insight if it exists.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Formatted insight document or None if not found
+        """
+        now = datetime.now(timezone.utc)
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        insight = await self._insights_collection.find_one({
+            "userId": ObjectId(user_id),
+            "trigger": "daily_checkin",
+            "createdAt": {"$gte": start_of_day}
+        })
+
+        if insight:
+            return self._format_insight(insight)
+        return None
 
     async def get_all_triggers(self) -> List[Dict[str, Any]]:
         """
@@ -371,7 +409,7 @@ class InsightService:
 
     def _format_insight(self, insight: Dict[str, Any]) -> Dict[str, Any]:
         """Format insight for response."""
-        return {
+        formatted = {
             "id": str(insight["_id"]),
             "userId": str(insight["userId"]),
             "type": insight.get("type"),
@@ -383,6 +421,12 @@ class InsightService:
             "expiresAt": insight.get("expiresAt"),
             "createdAt": insight.get("createdAt"),
         }
+        # Include Swedish fields if present
+        if insight.get("titleSv"):
+            formatted["titleSv"] = insight.get("titleSv")
+        if insight.get("descriptionSv"):
+            formatted["descriptionSv"] = insight.get("descriptionSv")
+        return formatted
 
     def _format_trigger(self, trigger: Dict[str, Any]) -> Dict[str, Any]:
         """Format trigger for internal use."""

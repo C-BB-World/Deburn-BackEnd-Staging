@@ -66,7 +66,9 @@ async def submit_checkin(
     return success_response({
         "streak": result.get("streak", 0),
         "insight": result.get("insight", ""),
-        "tip": result.get("tip", "")
+        "insightSv": result.get("insightSv", ""),
+        "tip": result.get("tip", ""),
+        "tipSv": result.get("tipSv", "")
     })
 
 
