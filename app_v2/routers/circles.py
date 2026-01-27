@@ -23,6 +23,7 @@ from app_v2.schemas.circles import (
     UpdateAttendanceRequest,
     SendInvitationsRequest,
     CreatePoolRequest,
+    MoveMemberRequest,
 )
 from common.utils import success_response
 
@@ -625,3 +626,178 @@ async def get_pool_groups(
         })
 
     return success_response({"groups": formatted_groups})
+
+
+@router.post("/pools/{pool_id}/groups/{group_id}/move-member")
+async def move_member(
+    pool_id: str,
+    group_id: str,
+    body: MoveMemberRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Move a member from one group to another.
+
+    Only organization admins can move members.
+
+    Errors:
+        - 400 GROUP_TOO_SMALL: Source group would have < 3 members
+        - 400 GROUP_FULL: Target group already has 6 members
+        - 403: Not authorized (not org admin)
+        - 404: Group or member not found
+    """
+    from bson import ObjectId
+    from app_v2.dependencies import get_main_db, get_notification_service
+
+    group_service = get_group_service()
+    pool_service = get_pool_service()
+    notification_service = get_notification_service()
+    db = get_main_db()
+
+    user_id = str(user["_id"])
+
+    # Get pool info for notification
+    pool = await pool_service.get_pool(pool_id)
+    pool_name = pool.get("name", "")
+
+    # Get source and target groups for names
+    from_group = await group_service.get_group(group_id)
+    to_group = await group_service.get_group(body.toGroupId)
+
+    from_group_name = from_group.get("name", "")
+    to_group_name = to_group.get("name", "")
+
+    # Perform the move (validates permissions and constraints)
+    await group_service.move_member(
+        member_id=body.memberId,
+        from_group_id=group_id,
+        to_group_id=body.toGroupId,
+        admin_id=user_id
+    )
+
+    # Get updated group info
+    updated_from_group = await group_service.get_group(group_id)
+    updated_to_group = await group_service.get_group(body.toGroupId)
+
+    # Get member info for response and notification
+    users_collection = db["users"]
+    member_doc = await users_collection.find_one({"_id": ObjectId(body.memberId)})
+
+    member_name = "Member"
+    member_email = None
+    if member_doc:
+        profile = member_doc.get("profile", {})
+        first_name = profile.get("firstName", "")
+        last_name = profile.get("lastName", "")
+        member_name = f"{first_name} {last_name}".strip() or member_doc.get("email", "Member")
+        member_email = member_doc.get("email")
+
+    # Create notification for the moved member
+    try:
+        await notification_service.create_user_moved_notification(
+            user_id=body.memberId,
+            from_group_name=from_group_name,
+            to_group_name=to_group_name,
+            pool_id=pool_id,
+            from_group_id=group_id,
+            to_group_id=body.toGroupId
+        )
+    except Exception as e:
+        logger.warning(f"Failed to create move notification: {e}")
+
+    # Send email notification
+    if member_email:
+        try:
+            from app_v2.services.email.email_service import EmailService
+            email_service = EmailService()
+            await email_service.send_member_moved_email(
+                to_email=member_email,
+                user_name=member_name.split()[0] if member_name else None,
+                from_group_name=from_group_name,
+                to_group_name=to_group_name,
+                pool_name=pool_name
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send move email: {e}")
+
+    return success_response({
+        "message": "Member moved successfully",
+        "fromGroup": {
+            "id": group_id,
+            "name": from_group_name,
+            "memberCount": len(updated_from_group.get("members", []))
+        },
+        "toGroup": {
+            "id": body.toGroupId,
+            "name": to_group_name,
+            "memberCount": len(updated_to_group.get("members", []))
+        },
+        "movedMember": {
+            "id": body.memberId,
+            "name": member_name
+        }
+    })
+
+
+@router.post("/pools/{pool_id}/groups/{group_id}/delete")
+async def delete_group(
+    pool_id: str,
+    group_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Delete a circle group.
+
+    Only organization admins can delete groups.
+    The group must belong to the specified pool.
+
+    Returns:
+        - 200: Group deleted successfully
+        - 403: Not authorized (not org admin)
+        - 404: Group or pool not found
+    """
+    from bson import ObjectId
+    from app_v2.dependencies import get_main_db
+
+    group_service = get_group_service()
+    pool_service = get_pool_service()
+    db = get_main_db()
+
+    user_id = str(user["_id"])
+
+    # Verify pool exists
+    pool = await pool_service.get_pool(pool_id)
+    if not pool:
+        raise HTTPException(status_code=404, detail="Pool not found")
+
+    # Get the group to verify it exists and belongs to this pool
+    group = await group_service.get_group(group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    # Verify group belongs to this pool
+    group_pool_id = str(group.get("poolId"))
+    if group_pool_id != pool_id:
+        raise HTTPException(status_code=400, detail="Group does not belong to this pool")
+
+    # Get group name for response before deletion
+    group_name = group.get("name", "Group")
+    member_count = len(group.get("members", []))
+
+    # Delete the group from circlegroups collection
+    groups_collection = db["circlegroups"]
+    result = await groups_collection.delete_one({"_id": ObjectId(group_id)})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Failed to delete group")
+
+    logger.info(f"Group {group_id} ({group_name}) deleted by user {user_id}")
+
+    return success_response({
+        "message": "Group deleted successfully",
+        "deletedGroup": {
+            "id": group_id,
+            "name": group_name,
+            "memberCount": member_count
+        }
+    })

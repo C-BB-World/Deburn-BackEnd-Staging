@@ -42,6 +42,9 @@ from app_v2.services.circles.group_service import GroupService
 from app_v2.services.circles.meeting_service import MeetingService
 from app_v2.services.circles.availability_service import AvailabilityService
 
+# Notification services
+from app_v2.services.notifications import NotificationService
+
 # Calendar services
 from app_v2.services.calendar.google_calendar_service import GoogleCalendarService
 from app_v2.services.calendar.token_encryption import TokenEncryptionService
@@ -129,6 +132,9 @@ _invitation_service: Optional[InvitationService] = None
 _group_service: Optional[GroupService] = None
 _meeting_service: Optional[MeetingService] = None
 _circles_availability_service: Optional[AvailabilityService] = None
+
+# Notifications
+_notification_service: Optional[NotificationService] = None
 
 # Calendar
 _google_calendar_service: Optional[GoogleCalendarService] = None
@@ -273,6 +279,13 @@ def init_circles_services(db: AsyncIOMotorDatabase, calendar_service=None) -> No
     _group_service = GroupService(db=db)
     _meeting_service = MeetingService(db=db, calendar_service=calendar_service)
     _circles_availability_service = AvailabilityService(db=db)
+
+
+def init_notification_services(db: AsyncIOMotorDatabase) -> None:
+    """Initialize notification services."""
+    global _notification_service
+
+    _notification_service = NotificationService(db=db)
 
 
 def init_calendar_services(db: AsyncIOMotorDatabase) -> None:
@@ -514,6 +527,7 @@ def init_all_services(
     init_i18n_services(db)
     init_calendar_services(db)
     init_circles_services(db, _google_calendar_service)
+    init_notification_services(db)
     init_content_services(db)
     init_ai_services(db, hub_db)  # Pass hub_db for new agent system
     init_checkin_services(db, _claude_provider)  # Pass AI client for insight generation
@@ -700,6 +714,17 @@ def get_circles_availability_service() -> AvailabilityService:
 
 # Alias for backwards compatibility
 get_availability_service = get_circles_availability_service
+
+
+# ─────────────────────────────────────────────────────────────────
+# Notification getters
+# ─────────────────────────────────────────────────────────────────
+
+def get_notification_service() -> NotificationService:
+    """Get notification service instance."""
+    if _notification_service is None:
+        raise RuntimeError("Notification services not initialized.")
+    return _notification_service
 
 
 # ─────────────────────────────────────────────────────────────────

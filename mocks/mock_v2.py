@@ -716,6 +716,42 @@ MOCK_QUICK_REPLIES = {
     "sv": ["Ber\u00e4tta mer", "Vad ska jag prova?", "Ge mig ett exempel"],
 }
 
+MOCK_NOTIFICATIONS = [
+    {
+        "id": "notif_001",
+        "userId": "usr_mock123",
+        "type": "group_assignment",
+        "title": "Assigned to Circle A",
+        "message": "You have been assigned to Circle A in the Q1 Leadership pool.",
+        "metadata": {"poolId": "pool_123", "groupId": "grp_123"},
+        "read": False,
+        "readAt": None,
+        "createdAt": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
+    },
+    {
+        "id": "notif_002",
+        "userId": "usr_mock123",
+        "type": "meeting_scheduled",
+        "title": "Meeting Scheduled",
+        "message": "A new meeting has been scheduled for your circle on January 20th at 3:00 PM.",
+        "metadata": {"meetingId": "mtg_123", "groupId": "grp_123"},
+        "read": False,
+        "readAt": None,
+        "createdAt": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+    },
+    {
+        "id": "notif_003",
+        "userId": "usr_mock123",
+        "type": "invitation",
+        "title": "Circle Invitation Accepted",
+        "message": "You have joined the Q1 Leadership pool.",
+        "metadata": {"poolId": "pool_123"},
+        "read": True,
+        "readAt": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
+        "createdAt": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(),
+    },
+]
+
 
 # =============================================================================
 # HEALTH CHECK
@@ -1202,6 +1238,19 @@ async def get_pool_groups(pool_id: str, authorization: Optional[str] = Header(No
                 "leaderId": "usr_1",
             }
         ]
+    })
+
+
+@app.post("/api/circles/pools/{pool_id}/groups/{group_id}/delete")
+async def delete_group(pool_id: str, group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return success_response({
+        "message": "Group deleted successfully",
+        "deletedGroup": {
+            "id": group_id,
+            "name": "Group A",
+            "memberCount": 5
+        }
     })
 
 
@@ -2273,6 +2322,48 @@ async def get_learning_ratings(content_id: str, authorization: Optional[str] = H
         "totalRatings": 42,
         "userRating": 4,
     })
+
+
+# =============================================================================
+# NOTIFICATION ENDPOINTS (/api/notifications)
+# =============================================================================
+
+@app.get("/api/notifications")
+async def get_notifications(
+    limit: int = 20,
+    offset: int = 0,
+    authorization: Optional[str] = Header(None)
+):
+    require_auth(authorization)
+    notifications = MOCK_NOTIFICATIONS[offset:offset + limit]
+    return success_response({
+        "notifications": notifications,
+        "total": len(MOCK_NOTIFICATIONS),
+        "hasMore": offset + limit < len(MOCK_NOTIFICATIONS),
+    })
+
+
+@app.get("/api/notifications/count")
+async def get_notification_count(authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    unread_count = sum(1 for n in MOCK_NOTIFICATIONS if not n["read"])
+    return success_response({"unread": unread_count})
+
+
+@app.post("/api/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    # Find and mark as read (in mock, just return success)
+    notification = next((n for n in MOCK_NOTIFICATIONS if n["id"] == notification_id), None)
+    if not notification:
+        raise HTTPException(status_code=404, detail={"message": "Notification not found"})
+    return success_response({"message": "Notification marked as read"})
+
+
+@app.post("/api/notifications/read-all")
+async def mark_all_notifications_read(authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return success_response({"message": "All notifications marked as read", "count": len(MOCK_NOTIFICATIONS)})
 
 
 # =============================================================================

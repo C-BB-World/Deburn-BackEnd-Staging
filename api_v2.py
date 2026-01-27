@@ -23,6 +23,7 @@ from app_v2.routers import (
     i18n_router,
     checkin_router,
     circles_router,
+    notifications_router,
     calendar_router,
     coach_router,
     progress_router,
@@ -143,6 +144,7 @@ app.include_router(user_router, prefix=API_PREFIX, tags=["User"])
 app.include_router(i18n_router, prefix=API_PREFIX, tags=["i18n"])
 app.include_router(checkin_router, prefix=API_PREFIX, tags=["Check-in"])
 app.include_router(circles_router, prefix=API_PREFIX, tags=["Circles"])
+app.include_router(notifications_router, prefix=API_PREFIX, tags=["Notifications"])
 app.include_router(calendar_router, prefix=API_PREFIX, tags=["Calendar"])
 app.include_router(coach_router, prefix=API_PREFIX, tags=["Coach"])
 app.include_router(progress_router, prefix=API_PREFIX, tags=["Progress"])

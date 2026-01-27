@@ -295,6 +295,93 @@ Lists groups for a pool (admin only).
 
 ---
 
+## POST /api/circles/pools/:poolId/groups/:groupId/move-member
+
+Moves a member from one group to another (admin only).
+
+**Request Body:**
+```json
+{
+  "memberId": "user_123",
+  "toGroupId": "grp_456"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `memberId` | string | Yes | User ID of member to move |
+| `toGroupId` | string | Yes | Target group ID |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Member moved successfully",
+    "fromGroup": {
+      "id": "grp_123",
+      "name": "Circle A",
+      "memberCount": 4
+    },
+    "toGroup": {
+      "id": "grp_456",
+      "name": "Circle B",
+      "memberCount": 5
+    },
+    "movedMember": {
+      "id": "user_123",
+      "name": "John Doe"
+    }
+  }
+}
+```
+
+**Error Responses:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `GROUP_TOO_SMALL` | 400 | Source group would have < 3 members after move |
+| `GROUP_FULL` | 400 | Target group already at max capacity (6 members) |
+
+**Side Effects:**
+- Member is removed from source group's `members` array
+- Member is added to target group's `members` array
+- Notification is created for the moved member
+- Email notification is sent to the moved member
+
+---
+
+## POST /api/circles/pools/:poolId/groups/:groupId/delete
+
+Deletes a circle group (admin only).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Group deleted successfully",
+    "deletedGroup": {
+      "id": "grp_123",
+      "name": "Circle A",
+      "memberCount": 4
+    }
+  }
+}
+```
+
+**Error Responses:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `POOL_NOT_FOUND` | 404 | Pool does not exist |
+| `GROUP_NOT_FOUND` | 404 | Group does not exist |
+| `GROUP_NOT_IN_POOL` | 400 | Group does not belong to this pool |
+
+**Side Effects:**
+- Group document is deleted from `circlegroups` collection
+- Members are no longer associated with this group
+
+---
+
 ## Error Responses
 
 ```json
@@ -335,6 +422,8 @@ All endpoints have been implemented and tested.
 | `DELETE /api/circles/invitations/:id` | ✅ Complete | `app_v2/routers/circles.py` | 498-529 |
 | `POST /api/circles/pools/:id/assign` | ✅ Complete | `app_v2/routers/circles.py` | 532-582 |
 | `GET /api/circles/pools/:id/groups` | ✅ Complete | `app_v2/routers/circles.py` | 585-635 |
+| `POST /api/circles/pools/:id/groups/:groupId/move-member` | ✅ Complete | `app_v2/routers/circles.py` | 631-739 |
+| `POST /api/circles/pools/:id/groups/:groupId/delete` | ✅ Complete | `app_v2/routers/circles.py` | 742-797 |
 
 ### Key Implementation Notes
 
@@ -374,4 +463,8 @@ class CreatePoolRequest(BaseModel):
     description: Optional[str] = None
     targetGroupSize: int = Field(default=4, ge=3, le=6)
     cadence: str = Field(default="biweekly", pattern="^(weekly|biweekly)$")
+
+class MoveMemberRequest(BaseModel):
+    memberId: str = Field(..., description="User ID of member to move")
+    toGroupId: str = Field(..., description="Target group ID")
 ```

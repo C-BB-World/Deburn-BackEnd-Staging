@@ -276,6 +276,108 @@ Best regards,
             text=text_content,
         )
 
+    async def send_member_moved_email(
+        self,
+        to_email: str,
+        user_name: Optional[str] = None,
+        from_group_name: str = "",
+        to_group_name: str = "",
+        pool_name: str = "",
+    ) -> dict:
+        """
+        Send notification email when a member is moved between groups.
+
+        Args:
+            to_email: Recipient email address
+            user_name: User's display name (optional)
+            from_group_name: Name of the source group
+            to_group_name: Name of the target group
+            pool_name: Name of the pool
+
+        Returns:
+            dict with success status and message
+        """
+        name = user_name or "there"
+        subject = f"You've been moved to {to_group_name}"
+
+        circles_link = f"{self._app_url}/circles"
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+        .info-box {{ background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+        .info-row {{ display: flex; justify-content: space-between; margin: 8px 0; }}
+        .info-label {{ color: #666; }}
+        .info-value {{ font-weight: 600; }}
+        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Group Change Notice</h1>
+    </div>
+    <div class="container">
+        <p>Hi {name},</p>
+        <p>You've been moved to a new group in <strong>{pool_name}</strong>.</p>
+
+        <div class="info-box">
+            <div class="info-row">
+                <span class="info-label">Previous Group:</span>
+                <span class="info-value">{from_group_name}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">New Group:</span>
+                <span class="info-value">{to_group_name}</span>
+            </div>
+        </div>
+
+        <p>Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.</p>
+
+        <div style="text-align: center;">
+            <a href="{circles_link}" class="button">View Your Circles</a>
+        </div>
+
+        <div class="footer">
+            <p>Best regards,<br>{self._team_name}</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_content = f"""
+Group Change Notice
+
+Hi {name},
+
+You've been moved to a new group in {pool_name}.
+
+Previous Group: {from_group_name}
+New Group: {to_group_name}
+
+Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.
+
+View Your Circles: {circles_link}
+
+Best regards,
+{self._team_name}
+"""
+
+        return await self._send(
+            to=to_email,
+            subject=subject,
+            html=html_content,
+            text=text_content,
+        )
+
     async def send_password_reset_email(
         self,
         to_email: str,

@@ -97,3 +97,9 @@ class CreatePoolRequest(BaseModel):
     description: Optional[str] = None
     targetGroupSize: int = Field(default=4, ge=3, le=6)
     cadence: str = Field(default="biweekly", pattern="^(weekly|biweekly)$")
+
+
+class MoveMemberRequest(BaseModel):
+    """POST /api/circles/pools/:poolId/groups/:groupId/move-member"""
+    memberId: str = Field(..., description="User ID of member to move")
+    toGroupId: str = Field(..., description="Target group ID")
