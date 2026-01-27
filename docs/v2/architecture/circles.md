@@ -1,5 +1,7 @@
 # Circles & Groups System
 
+> **Rebranding Note (January 2026):** "Circles" has been rebranded to **"Think Tanks"** in the user-facing application. The codebase retains the original "circles" terminology for backward compatibility. When referring to this feature in user-facing content, use "Think Tanks".
+
 ## Description
 
 The Circles & Groups System facilitates peer-to-peer leadership development through small group discussions. Organization admins create pools, invite participants, and the system automatically assigns them to small groups (circles) for recurring meetings with calendar integration.

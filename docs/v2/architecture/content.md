@@ -1,5 +1,7 @@
 # Content & Learning System
 
+> **Rebranding Note (January 2026):** "Learnings" has been rebranded to **"Micro-Courses"** in the user-facing application. The codebase retains the original "learning/content" terminology for backward compatibility. When referring to this feature in user-facing content, use "Micro-Courses".
+
 ## Description
 
 The Content & Learning System manages all learning content (articles, audio, video, exercises) and tracks user progress. It supports dual-source loading (file-based or database) for flexibility during migration.
