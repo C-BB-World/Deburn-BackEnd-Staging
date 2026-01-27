@@ -14,10 +14,12 @@ from app_v2.dependencies import (
     get_checkin_service,
     get_checkin_analytics,
     get_insight_generator,
+    get_insight_service,
 )
 from app_v2.services.checkin.checkin_service import CheckInService
 from app_v2.services.checkin.checkin_analytics import CheckInAnalytics
 from app_v2.services.checkin.insight_generator import InsightGenerator
+from app_v2.services.progress.insight_service import InsightService
 from app_v2.schemas.checkin import CheckInRequest
 from common.utils import success_response
 
@@ -33,11 +35,13 @@ async def submit_checkin(
     checkin_service: Annotated[CheckInService, Depends(get_checkin_service)],
     checkin_analytics: Annotated[CheckInAnalytics, Depends(get_checkin_analytics)],
     insight_generator: Annotated[InsightGenerator, Depends(get_insight_generator)],
+    insight_service: Annotated[InsightService, Depends(get_insight_service)],
 ):
     """
     Submit a daily check-in.
 
     Creates or updates today's check-in and returns streak and AI insight.
+    The insight is also persisted so it can be viewed on the dashboard.
     """
     from app_v2.pipelines import checkin as pipelines
 
@@ -55,7 +59,8 @@ async def submit_checkin(
         insight_generator=insight_generator,
         user_id=str(user["_id"]),
         metrics=metrics,
-        notes=None
+        notes=None,
+        insight_service=insight_service
     )
 
     return success_response({

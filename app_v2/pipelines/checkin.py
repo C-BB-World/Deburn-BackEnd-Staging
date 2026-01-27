@@ -6,10 +6,12 @@ Stateless orchestration logic for check-in operations.
 
 import logging
 from typing import Optional, Dict, Any
+from datetime import datetime, timezone, timedelta
 
 from app_v2.services.checkin.checkin_service import CheckInService
 from app_v2.services.checkin.checkin_analytics import CheckInAnalytics
 from app_v2.services.checkin.insight_generator import InsightGenerator
+from app_v2.services.progress.insight_service import InsightService
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,8 @@ async def submit_checkin_pipeline(
     insight_generator: InsightGenerator,
     user_id: str,
     metrics: Dict[str, int],
-    notes: Optional[str] = None
+    notes: Optional[str] = None,
+    insight_service: Optional[InsightService] = None
 ) -> Dict[str, Any]:
     """
     Orchestrates the check-in submission flow.
@@ -32,6 +35,7 @@ async def submit_checkin_pipeline(
         user_id: Current user's ID
         metrics: Check-in metrics from request
         notes: Optional notes
+        insight_service: For persisting insights (optional)
 
     Returns:
         Response dict with streak, insight, tip
@@ -41,6 +45,29 @@ async def submit_checkin_pipeline(
     streak = await checkin_analytics.calculate_streak(user_id)
 
     insight_data = await insight_generator.generate_insight(user_id, checkin)
+
+    # Persist the generated insight so it shows on dashboard
+    # Creates new insight or updates existing one on same-day retake
+    if insight_service and insight_data.get("insight"):
+        try:
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+            await insight_service.update_or_create_checkin_insight(
+                user_id=user_id,
+                title="Today's Check-in Insight",
+                description=f"{insight_data['insight']}\n\nTip: {insight_data['tip']}",
+                metrics={
+                    "mood": metrics.get("mood"),
+                    "physicalEnergy": metrics.get("physicalEnergy"),
+                    "mentalEnergy": metrics.get("mentalEnergy"),
+                    "sleep": metrics.get("sleep"),
+                    "stress": metrics.get("stress"),
+                },
+                expires_at=expires_at
+            )
+        except Exception as e:
+            # Don't fail check-in if insight persistence fails
+            logger.warning(f"Failed to persist check-in insight: {e}")
 
     return {
         "streak": streak,

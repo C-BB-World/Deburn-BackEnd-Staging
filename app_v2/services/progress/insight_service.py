@@ -177,6 +177,79 @@ class InsightService:
 
         return count > 0
 
+    async def update_or_create_checkin_insight(
+        self,
+        user_id: str,
+        title: str,
+        description: str,
+        metrics: Dict[str, Any],
+        expires_at: datetime
+    ) -> Dict[str, Any]:
+        """
+        Create or update today's check-in insight.
+
+        If an insight with trigger 'daily_checkin' exists for today, update it.
+        Otherwise, create a new insight.
+
+        Args:
+            user_id: User ID
+            title: Display title
+            description: Insight text with tip
+            metrics: Check-in metrics (mood, energy, sleep, stress)
+            expires_at: Expiration datetime
+
+        Returns:
+            Created or updated insight document
+        """
+        now = datetime.now(timezone.utc)
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Check for existing check-in insight created today
+        existing = await self._insights_collection.find_one({
+            "userId": ObjectId(user_id),
+            "trigger": "daily_checkin",
+            "createdAt": {"$gte": start_of_day}
+        })
+
+        if existing:
+            # Update existing insight
+            result = await self._insights_collection.find_one_and_update(
+                {"_id": existing["_id"]},
+                {
+                    "$set": {
+                        "title": title[:100],
+                        "description": description[:500],
+                        "metrics": metrics,
+                        "expiresAt": expires_at,
+                        "isRead": False,
+                        "updatedAt": now
+                    }
+                },
+                return_document=True
+            )
+            logger.info(f"Updated check-in insight for user {user_id}")
+            return self._format_insight(result)
+
+        # Create new insight
+        insight_doc = {
+            "userId": ObjectId(user_id),
+            "type": "checkin",
+            "trigger": "daily_checkin",
+            "title": title[:100],
+            "description": description[:500],
+            "metrics": metrics,
+            "isRead": False,
+            "expiresAt": expires_at,
+            "createdAt": now,
+            "updatedAt": now
+        }
+
+        result = await self._insights_collection.insert_one(insight_doc)
+        insight_doc["_id"] = result.inserted_id
+
+        logger.info(f"Created check-in insight for user {user_id}")
+        return self._format_insight(insight_doc)
+
     async def get_all_triggers(self) -> List[Dict[str, Any]]:
         """
         Get all active insight triggers from database.
