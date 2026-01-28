@@ -5,7 +5,7 @@ Uses Pydantic Settings for automatic environment variable loading.
 Extend this class for application-specific settings.
 
 Example:
-    from common.config import BaseAppSettings
+    from config import BaseAppSettings
 
     class Settings(BaseAppSettings):
         # App-specific settings

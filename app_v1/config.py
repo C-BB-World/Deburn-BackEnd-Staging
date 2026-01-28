@@ -5,7 +5,7 @@ Extends the base settings with BrainBank-specific configuration.
 """
 
 from typing import Optional
-from common.config import BaseAppSettings
+from config import BaseAppSettings
 
 
 class Settings(BaseAppSettings):

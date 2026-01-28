@@ -128,5 +128,5 @@ class RecentConversationsResponse(BaseModel):
 class VoiceRequest(BaseModel):
     """Request for text-to-speech conversion."""
     text: str = Field(..., min_length=1, max_length=3000)
-    voice: Optional[str] = Field(default="Aria")
+    voice: Optional[str] = Field(default=None, description="Voice name or ID (None = use language default)")
     language: str = Field(default="en", pattern="^(en|sv)$")

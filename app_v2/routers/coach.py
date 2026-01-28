@@ -328,6 +328,7 @@ async def text_to_speech(
     result = await tts_service.generate_speech(
         text=body.text,
         voice=body.voice,
+        language=body.language,
         speed=1.0
     )
 

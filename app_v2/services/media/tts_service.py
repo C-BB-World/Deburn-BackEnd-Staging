@@ -15,32 +15,9 @@ import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from common.utils.exceptions import ServerException
+from config.tts_config import VOICE_MAPPINGS, TTS_DEFAULTS
 
 logger = logging.getLogger(__name__)
-
-
-VOICE_MAPPINGS = {
-    # Custom voices
-    "Aria": "fO844Om1VZLpw8IpZj3T",
-    "Leoni Vergara": "pBZVCk298iJlHAcHQwLr",
-    "Ana-Rita": "wJqPPQ618aTW29mptyoc",
-    "Andromeda": "HoU1B9WLbSprzhhX34v0",
-    "LavenderLessons": "cL2JBnZF7ILVaQ86EQMQ",
-    # High pitch voices
-    "Sarah": "EXAVITQu4vr4xnSDxMaL",
-    "Laura": "FGY2WhTYpPnrIDTdsKH5",
-    "Alice": "Xb7hH8MSUJpSbSDYk0k2",
-    "Matilda": "XrExE9yKIg1WjnnlVkGX",
-    "Jessica": "cgSgspJ2msm6clMCkdW9",
-    "Lily": "pFZP5JQG7iQjIQuC4Bku",
-    # Low pitch voices
-    "Roger": "CwhRBWXzGAHq8TQ4Fs17",
-    "Charlie": "IKne3meq5aSn9XLyUdCD",
-    "George": "JBFqnCBsd6RMkjVDRZzb",
-    "Callum": "N2lVS1w4EtoT3dr4eOWO",
-    "Liam": "TX3LPaxmHKxFdv7VOQHJ",
-    "Daniel": "onwK4e9ZLuTAKqWW03F9",
-}
 
 
 class TTSService:
@@ -76,12 +53,13 @@ class TTSService:
     async def generate_speech(
         self,
         text: str,
-        voice: str = "Aria",
+        voice: Optional[str] = None,
+        language: str = "en",
         stability: float = 0.5,
         similarity_boost: float = 0.75,
         speed: float = 1.0,
         style: float = 0,
-        model_id: str = "eleven_multilingual_v2",
+        model_id: Optional[str] = None,
         use_cache: bool = True
     ) -> Dict[str, Any]:
         """
@@ -89,12 +67,13 @@ class TTSService:
 
         Args:
             text: Text to convert to speech
-            voice: Voice name or ID
+            voice: Voice name or ID (None = use language default)
+            language: Language code ("en" or "sv") for default voice/model
             stability: Voice stability (0-1)
             similarity_boost: Similarity boost (0-1)
             speed: Speech speed (0.7-1.2)
             style: Style exaggeration (0-1)
-            model_id: ElevenLabs model to use
+            model_id: ElevenLabs model to use (None = use language default)
             use_cache: Whether to use cache (if caching enabled)
 
         Returns:
@@ -112,8 +91,15 @@ class TTSService:
                 code="API_KEY_MISSING"
             )
 
-        voice_id = self.get_voice_id(voice)
-        voice_name = voice if voice in VOICE_MAPPINGS else "Custom"
+        # Get language-specific defaults
+        lang_defaults = TTS_DEFAULTS.get(language, TTS_DEFAULTS["en"])
+
+        # Use provided voice/model or fall back to language defaults
+        effective_voice = voice if voice else lang_defaults["voice"]
+        effective_model = model_id if model_id else lang_defaults["model"]
+
+        voice_id = self.get_voice_id(effective_voice)
+        voice_name = effective_voice if effective_voice in VOICE_MAPPINGS else "Custom"
 
         params = {
             "text": text,
@@ -122,7 +108,7 @@ class TTSService:
             "similarity_boost": similarity_boost,
             "speed": speed,
             "style": style,
-            "model_id": model_id,
+            "model_id": effective_model,
         }
 
         if self._caching_enabled and use_cache and self._cache_collection is not None:
@@ -151,7 +137,7 @@ class TTSService:
                     },
                     json={
                         "text": text,
-                        "model_id": model_id,
+                        "model_id": effective_model,
                         "voice_settings": {
                             "stability": stability,
                             "similarity_boost": similarity_boost,
