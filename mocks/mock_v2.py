@@ -1591,6 +1591,53 @@ async def text_to_speech(request: VoiceRequest, authorization: Optional[str] = H
     )
 
 
+class TranslateConversationRequest(BaseModel):
+    conversationId: str
+    targetLanguage: str
+    startIndex: Optional[int] = None
+    count: int = 20
+
+
+@app.post("/api/coach/conversations/translate")
+async def translate_conversation(request: TranslateConversationRequest, authorization: Optional[str] = Header(None)):
+    """Mock translation endpoint - returns mock translated messages."""
+    require_auth(authorization)
+
+    # Mock translated messages based on target language
+    mock_messages = [
+        {"role": "user", "content": "I want to work on my leadership skills"},
+        {"role": "assistant", "content": "That's a wonderful goal! Leadership is a journey of continuous growth."},
+    ]
+
+    translated_messages = []
+    for i, msg in enumerate(mock_messages):
+        if request.targetLanguage == "sv":
+            # Mock Swedish translations
+            if msg["role"] == "user":
+                content = "Jag vill jobba på mitt ledarskap"
+            else:
+                content = "Det är ett fantastiskt mål! Ledarskap är en resa av ständig utveckling."
+        else:
+            content = msg["content"]
+
+        translated_messages.append({
+            "index": i,
+            "content": content,
+            "alreadyInTargetLanguage": False,
+            "fromCache": i == 0,  # First one from cache, second newly translated
+            "newlyTranslated": i == 1,
+        })
+
+    return {
+        "translatedMessages": translated_messages,
+        "totalMessages": len(mock_messages),
+        "startIndex": 0,
+        "endIndex": len(mock_messages),
+        "newlyTranslated": 1,
+        "fromCache": 1,
+    }
+
+
 # =============================================================================
 # LEARNING/CONTENT ENDPOINTS (/api/learning)
 # =============================================================================

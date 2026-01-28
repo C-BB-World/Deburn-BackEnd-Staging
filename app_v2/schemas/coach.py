@@ -130,3 +130,30 @@ class VoiceRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=3000)
     voice: Optional[str] = Field(default=None, description="Voice name or ID (None = use language default)")
     language: str = Field(default="en", pattern="^(en|sv)$")
+
+
+class TranslateConversationRequest(BaseModel):
+    """Request to translate conversation messages."""
+    conversationId: str
+    targetLanguage: str = Field(..., pattern="^(en|sv)$")
+    startIndex: Optional[int] = Field(default=None, ge=0)
+    count: int = Field(default=20, ge=1, le=50)
+
+
+class TranslatedMessageResponse(BaseModel):
+    """Single translated message."""
+    index: int
+    content: str
+    alreadyInTargetLanguage: bool = False
+    fromCache: bool = False
+    newlyTranslated: bool = False
+
+
+class TranslateConversationResponse(BaseModel):
+    """Response with translated messages."""
+    translatedMessages: List[TranslatedMessageResponse]
+    totalMessages: int
+    startIndex: int
+    endIndex: int
+    newlyTranslated: int
+    fromCache: int

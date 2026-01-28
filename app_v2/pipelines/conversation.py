@@ -81,7 +81,8 @@ async def save_message(
     conversation_id: str,
     role: str,
     content: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    language: str = "en"
 ) -> None:
     """
     Save an encrypted message to the conversation.
@@ -93,6 +94,7 @@ async def save_message(
         role: 'user' or 'assistant'
         content: Message content (will be encrypted)
         metadata: Optional metadata (not encrypted)
+        language: Language code of the message ('en' or 'sv')
     """
     collection = db["conversations"]
     now = datetime.now(timezone.utc)
@@ -104,8 +106,10 @@ async def save_message(
         "role": role,
         "content": encrypted_content,
         "encrypted": True,
+        "language": language,
         "timestamp": now,
-        "metadata": metadata or {}
+        "metadata": metadata or {},
+        "translations": {}
     }
 
     await collection.update_one(

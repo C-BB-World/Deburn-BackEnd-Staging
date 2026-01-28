@@ -51,6 +51,9 @@ from app_v2.services.feedback import FeedbackService
 # Learning services
 from app_v2.services.learning import LearningQueueService
 
+# Translation services
+from app_v2.services.translation import TranslationService
+
 # Calendar services
 from app_v2.services.calendar.google_calendar_service import GoogleCalendarService
 from app_v2.services.calendar.token_encryption import TokenEncryptionService
@@ -147,6 +150,9 @@ _feedback_service: Optional[FeedbackService] = None
 
 # Learning
 _learning_queue_service: Optional[LearningQueueService] = None
+
+# Translation
+_translation_service: Optional[TranslationService] = None
 
 # Calendar
 _google_calendar_service: Optional[GoogleCalendarService] = None
@@ -312,6 +318,13 @@ def init_learning_queue_services(db: AsyncIOMotorDatabase) -> None:
     global _learning_queue_service
 
     _learning_queue_service = LearningQueueService(db=db)
+
+
+def init_translation_services(claude_provider: ClaudeProvider) -> None:
+    """Initialize translation services."""
+    global _translation_service
+
+    _translation_service = TranslationService(claude_provider=claude_provider)
 
 
 def init_calendar_services(db: AsyncIOMotorDatabase) -> None:
@@ -556,6 +569,8 @@ def init_all_services(
     init_notification_services(db)
     init_content_services(db)
     init_ai_services(db, hub_db)  # Pass hub_db for new agent system
+    if _claude_provider:
+        init_translation_services(_claude_provider)  # Pass claude provider for translations
     init_checkin_services(db, _claude_provider)  # Pass AI client for insight generation
     init_progress_services(db, _pattern_detector, _agent)
     init_media_services(db)
@@ -776,6 +791,13 @@ def get_learning_queue_service() -> LearningQueueService:
     if _learning_queue_service is None:
         raise RuntimeError("Learning queue services not initialized.")
     return _learning_queue_service
+
+
+def get_translation_service() -> TranslationService:
+    """Get translation service instance."""
+    if _translation_service is None:
+        raise RuntimeError("Translation services not initialized.")
+    return _translation_service
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -239,3 +239,92 @@ Fetches detected patterns from check-in data.
     "stressChange": -0.3
   }
 }
+```
+
+---
+
+## POST /api/coach/conversations/translate
+
+Translates conversation messages to target language. Translations are cached in the message document for future requests.
+
+**Request:**
+```json
+{
+  "conversationId": "conv_20260128_abc123",
+  "targetLanguage": "sv",
+  "startIndex": null,
+  "count": 20
+}
+```
+
+**Request Fields:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `conversationId` | string | Yes | Conversation ID to translate |
+| `targetLanguage` | string | Yes | Target language code ('en' or 'sv') |
+| `startIndex` | number | No | Starting message index (null = from end) |
+| `count` | number | No | Number of messages to translate (default: 20, max: 50) |
+
+**Response:**
+```json
+{
+  "translatedMessages": [
+    {
+      "index": 0,
+      "content": "Jag vill jobba på mitt ledarskap",
+      "alreadyInTargetLanguage": false,
+      "fromCache": false,
+      "newlyTranslated": true
+    },
+    {
+      "index": 1,
+      "content": "Det är ett bra mål!",
+      "alreadyInTargetLanguage": false,
+      "fromCache": true,
+      "newlyTranslated": false
+    }
+  ],
+  "totalMessages": 10,
+  "startIndex": 0,
+  "endIndex": 10,
+  "newlyTranslated": 1,
+  "fromCache": 1
+}
+```
+
+**Response Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `translatedMessages` | array | Array of translated messages |
+| `translatedMessages[].index` | number | Message index in conversation |
+| `translatedMessages[].content` | string | Translated content (decrypted) |
+| `translatedMessages[].alreadyInTargetLanguage` | boolean | Message was already in target language |
+| `translatedMessages[].fromCache` | boolean | Translation was retrieved from cache |
+| `translatedMessages[].newlyTranslated` | boolean | Translation was just performed |
+| `totalMessages` | number | Total messages in conversation |
+| `startIndex` | number | Actual start index used |
+| `endIndex` | number | Actual end index used |
+| `newlyTranslated` | number | Count of newly translated messages |
+| `fromCache` | number | Count of cached translations returned |
+
+**Internal Flow:**
+1. Fetch conversation (verify ownership)
+2. For each message in range:
+   - Skip if already in target language
+   - Return cached translation if exists
+   - Otherwise add to translation batch
+3. Batch translate via Claude API
+4. Encrypt and cache translations in message document
+5. Return all translations (cached + new)
+
+**Translation Caching:**
+Translations are stored encrypted in the message's `translations` field:
+```json
+{
+  "role": "user",
+  "content": "encrypted_original",
+  "language": "en",
+  "translations": {
+    "sv": "encrypted_swedish_translation"
+  }
+}

@@ -22,13 +22,16 @@ from app_v2.dependencies import (
     get_tts_service,
     get_hub_db,
     get_memory_encryption_service,
+    get_translation_service,
 )
 from app_v2.services.media.tts_service import TTSService
 from app_v2.services.coach.coach_service import CoachService
 from app_v2.services.coach.commitment_service import CommitmentService
 from app_v2.services.coach.pattern_detector import PatternDetector
+from app_v2.services.translation import TranslationService
 from app_v2.agent.memory.encryption import MemoryEncryptionService
 from app_v2.pipelines import conversation as conversation_pipeline
+from app_v2.pipelines import translation as translation_pipeline
 from app_v2.schemas.coach import (
     SendMessageRequest,
     ConversationResponse,
@@ -41,6 +44,8 @@ from app_v2.schemas.coach import (
     PatternResultResponse,
     RecentConversationsResponse,
     VoiceRequest,
+    TranslateConversationRequest,
+    TranslateConversationResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,7 +102,8 @@ async def send_message(
         encryption_service=encryption_service,
         conversation_id=conversation["conversationId"],
         role="user",
-        content=body.message
+        content=body.message,
+        language=body.language
     )
 
     async def generate():
@@ -138,7 +144,8 @@ async def send_message(
             conversation_id=conversation_id,
             role="assistant",
             content=full_response,
-            metadata={"topics": topics, "commitment": commitment_info, "actions": actions}
+            metadata={"topics": topics, "commitment": commitment_info, "actions": actions},
+            language=body.language
         )
 
         # Step 5: Update topics
@@ -339,4 +346,49 @@ async def text_to_speech(
             "Content-Length": str(len(result["audioBuffer"])),
             "Cache-Control": "private, max-age=3600",
         }
+    )
+
+
+@router.post("/conversations/translate", response_model=TranslateConversationResponse)
+async def translate_conversation(
+    body: TranslateConversationRequest,
+    user: Annotated[dict, Depends(require_auth)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+    translation_service: Annotated[TranslationService, Depends(get_translation_service)],
+    encryption_service: Annotated[MemoryEncryptionService, Depends(get_memory_encryption_service)],
+):
+    """
+    Translate conversation messages to target language.
+
+    Caches translations in the database for future requests.
+    Returns both cached and newly translated messages.
+    """
+    result = await translation_pipeline.translate_conversation_messages(
+        db=hub_db,
+        translation_service=translation_service,
+        encryption_service=encryption_service,
+        conversation_id=body.conversationId,
+        user_id=str(user["_id"]),
+        target_language=body.targetLanguage,
+        start_index=body.startIndex,
+        count=body.count,
+    )
+
+    if "error" in result:
+        return TranslateConversationResponse(
+            translatedMessages=[],
+            totalMessages=0,
+            startIndex=0,
+            endIndex=0,
+            newlyTranslated=0,
+            fromCache=0,
+        )
+
+    return TranslateConversationResponse(
+        translatedMessages=result["translatedMessages"],
+        totalMessages=result["totalMessages"],
+        startIndex=result["startIndex"],
+        endIndex=result["endIndex"],
+        newlyTranslated=result["newlyTranslated"],
+        fromCache=result["fromCache"],
     )
