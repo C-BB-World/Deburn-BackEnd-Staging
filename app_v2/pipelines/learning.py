@@ -38,7 +38,7 @@ async def get_todays_focus_pipeline(
     """
     # 1. Get all published content IDs
     all_content_ids = await _get_all_content_ids(hub_db)
-    print(f"[TODAY'S FOCUS] Found {len(all_content_ids)} published content items for user {user_id}")
+    logger.debug(f"Found {len(all_content_ids)} published content items for user {user_id}")
 
     if not all_content_ids:
         logger.warning("No learning content available in hub_db.contentitems with status='published'")

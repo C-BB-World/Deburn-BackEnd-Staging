@@ -2200,9 +2200,17 @@ async def get_dashboard(authorization: Optional[str] = Header(None)):
         "streak": 5,
         "insightsCount": 3,
         "todaysFocus": {
-            "title": "Time Management Mastery",
-            "titleSv": "Tidshanteringsm\u00e4sterskap",
-            "progress": 45,
+            "module": {
+                "id": "cnt_featured_1",
+                "contentType": "audio_article",
+                "category": "featured",
+                "titleEn": "Leading Through Uncertainty",
+                "titleSv": "Leda genom osäkerhet",
+                "lengthMinutes": 8,
+            },
+            "currentIndex": 5,
+            "totalModules": 14,
+            "progress": 0.357,
         },
         "nextCircle": {
             "date": "Jan 20, 3:00 PM",

@@ -54,21 +54,16 @@ async def get_dashboard(
     # Get today's learning focus
     try:
         hub_db = get_hub_db()
-        print(f"[DASHBOARD] Got hub_db, calling pipeline for user {user_id}")
         todays_focus = await get_todays_focus_pipeline(
             queue_service=learning_queue_service,
             hub_db=hub_db,
             user_id=user_id,
         )
-        print(f"[DASHBOARD] Today's focus result: {todays_focus}")
-    except RuntimeError as e:
+    except RuntimeError:
         # Hub database not configured
-        print(f"[DASHBOARD] RuntimeError: {e}")
         todays_focus = None
     except Exception as e:
-        print(f"[DASHBOARD] Exception: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error getting today's focus for user {user_id}: {e}")
         todays_focus = None
 
     # Format today's checkin data
