@@ -21,8 +21,10 @@ class ScheduleMeetingRequest(BaseModel):
     title: str
     description: Optional[str] = None
     scheduledAt: str
-    duration: int
+    duration: int = 60
     location: Optional[str] = None
+    meetingLink: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 class UpdateAttendanceRequest(BaseModel):

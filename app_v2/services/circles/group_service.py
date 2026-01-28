@@ -44,6 +44,7 @@ class GroupService:
         self._pools_collection = db["circlepools"]
         self._invitations_collection = db["circleinvitations"]
         self._org_members_collection = db["organizationmembers"]
+        self._users_collection = db["users"]
 
     async def assign_groups(self, pool_id: str, user_id: str) -> Dict[str, Any]:
         """
@@ -96,18 +97,38 @@ class GroupService:
             user_ids, target_size, self.MIN_GROUP_SIZE, self.MAX_GROUP_SIZE
         )
 
+        all_user_ids = [ObjectId(uid) for uid in user_ids]
+        users_cursor = self._users_collection.find(
+            {"_id": {"$in": all_user_ids}},
+            {"_id": 1, "profile.firstName": 1, "profile.lastName": 1, "email": 1}
+        )
+        users_list = await users_cursor.to_list(length=len(all_user_ids))
+        users_map = {str(u["_id"]): u for u in users_list}
+
         now = datetime.now(timezone.utc)
         existing_group_count = len(existing_groups)
         created_groups = []
 
-        for i, members in enumerate(group_assignments):
+        for i, member_ids in enumerate(group_assignments):
             group_index = existing_group_count + i
             group_name = self.GROUP_NAMES[group_index] if group_index < len(self.GROUP_NAMES) else f"Circle {group_index + 1}"
+
+            members_with_names = []
+            for uid in member_ids:
+                user_data = users_map.get(uid, {})
+                profile = user_data.get("profile", {})
+                first_name = profile.get("firstName", "")
+                last_name = profile.get("lastName", "")
+                name = f"{first_name} {last_name}".strip() or user_data.get("email", "Member")
+                members_with_names.append({
+                    "userId": ObjectId(uid),
+                    "name": name
+                })
 
             group_doc = {
                 "poolId": ObjectId(pool_id),
                 "name": group_name,
-                "members": [ObjectId(uid) for uid in members],
+                "members": members_with_names,
                 "status": "active",
                 "leaderId": None,
                 "stats": {
@@ -201,7 +222,7 @@ class GroupService:
     async def get_groups_for_user(self, user_id: str) -> List[Dict[str, Any]]:
         """Get user's active groups across all pools."""
         cursor = self._groups_collection.find({
-            "members": ObjectId(user_id),
+            "members.userId": ObjectId(user_id),
             "status": "active"
         })
         return await cursor.to_list(length=50)
@@ -214,7 +235,8 @@ class GroupService:
         """Check if user can access group. True if member or org admin."""
         group = await self.get_group(group_id)
 
-        if ObjectId(user_id) in group.get("members", []):
+        member_ids = [m.get("userId") for m in group.get("members", []) if isinstance(m, dict)]
+        if ObjectId(user_id) in member_ids:
             return True
 
         pool = await self._pools_collection.find_one({"_id": group["poolId"]})
@@ -256,12 +278,24 @@ class GroupService:
                 code="GROUP_FULL"
             )
 
+        member_obj = None
+        for m in from_group.get("members", []):
+            if isinstance(m, dict) and m.get("userId") == ObjectId(member_id):
+                member_obj = m
+                break
+
+        if not member_obj:
+            raise ValidationException(
+                message="Member not found in source group",
+                code="MEMBER_NOT_FOUND"
+            )
+
         now = datetime.now(timezone.utc)
 
         await self._groups_collection.update_one(
             {"_id": ObjectId(from_group_id)},
             {
-                "$pull": {"members": ObjectId(member_id)},
+                "$pull": {"members": {"userId": ObjectId(member_id)}},
                 "$set": {"updatedAt": now}
             }
         )
@@ -269,7 +303,7 @@ class GroupService:
         await self._groups_collection.update_one(
             {"_id": ObjectId(to_group_id)},
             {
-                "$push": {"members": ObjectId(member_id)},
+                "$push": {"members": member_obj},
                 "$set": {"updatedAt": now}
             }
         )
@@ -289,7 +323,8 @@ class GroupService:
         if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
             raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
 
-        if ObjectId(member_id) not in group["members"]:
+        member_ids = [m.get("userId") for m in group.get("members", []) if isinstance(m, dict)]
+        if ObjectId(member_id) not in member_ids:
             raise ValidationException(
                 message="User is not a member of this group",
                 code="NOT_GROUP_MEMBER"

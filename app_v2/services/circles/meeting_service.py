@@ -53,6 +53,7 @@ class MeetingService:
         description: Optional[str] = None,
         scheduled_at: Optional[datetime] = None,
         duration: int = 60,
+        meeting_link: Optional[str] = None,
         meeting_timezone: str = "Europe/Stockholm",
         create_calendar_events: bool = True
     ) -> Dict[str, Any]:
@@ -67,6 +68,7 @@ class MeetingService:
             description: Additional description
             scheduled_at: When to meet
             duration: Duration in minutes (15-180)
+            meeting_link: Video call link (Zoom, Meet, etc.)
             meeting_timezone: Timezone for the meeting
             create_calendar_events: Whether to create calendar events
 
@@ -96,24 +98,29 @@ class MeetingService:
                 code="INVALID_DURATION"
             )
 
-        if scheduled_at and scheduled_at < datetime.now(timezone.utc):
-            raise ValidationException(
-                message="Cannot schedule meeting in the past",
-                code="INVALID_SCHEDULED_TIME"
-            )
-
         now = datetime.now(timezone.utc)
+
+        if scheduled_at:
+            if isinstance(scheduled_at, str):
+                scheduled_at = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
+            if scheduled_at.tzinfo is None:
+                scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+            if scheduled_at < now:
+                raise ValidationException(
+                    message="Cannot schedule meeting in the past",
+                    code="INVALID_SCHEDULED_TIME"
+                )
 
         if not title:
             title = f"{group['name']} Meeting"
 
         attendance = [
             {
-                "userId": member_id,
+                "userId": m.get("userId") if isinstance(m, dict) else m,
                 "status": "pending",
                 "respondedAt": None
             }
-            for member_id in group["members"]
+            for m in group["members"]
         ]
 
         meeting_doc = {
@@ -124,7 +131,7 @@ class MeetingService:
             "scheduledAt": scheduled_at or (now + timedelta(days=7)),
             "duration": duration,
             "timezone": meeting_timezone,
-            "meetingLink": None,
+            "meetingLink": meeting_link,
             "status": "scheduled",
             "scheduledBy": ObjectId(scheduled_by),
             "calendarEvents": [],
@@ -392,7 +399,8 @@ class MeetingService:
 
     async def _user_has_access(self, group: Dict[str, Any], user_id: str) -> bool:
         """Check if user has access to schedule/modify meetings."""
-        if ObjectId(user_id) in group.get("members", []):
+        member_ids = [m.get("userId") for m in group.get("members", []) if isinstance(m, dict)]
+        if ObjectId(user_id) in member_ids:
             return True
 
         pool = await self._pools_collection.find_one({"_id": group["poolId"]})

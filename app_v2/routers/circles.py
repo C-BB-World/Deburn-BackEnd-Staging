@@ -38,21 +38,43 @@ async def get_my_groups(
 ):
     """Get current user's circle groups."""
     group_service = get_group_service()
+    meeting_service = get_meeting_service()
     user_id = str(user["_id"])
 
     groups = await group_service.get_groups_for_user(user_id)
 
     formatted_groups = []
     for g in groups:
+        group_id = str(g["_id"])
+        next_meeting = await meeting_service.get_next_meeting(group_id)
+
+        next_meeting_data = None
+        if next_meeting:
+            next_meeting_data = {
+                "id": str(next_meeting["_id"]),
+                "title": next_meeting.get("title", ""),
+                "scheduledAt": next_meeting.get("scheduledAt").isoformat() if next_meeting.get("scheduledAt") else None,
+                "duration": next_meeting.get("duration", 60),
+                "meetingLink": next_meeting.get("meetingLink"),
+                "timezone": next_meeting.get("timezone", "UTC"),
+            }
+
+        raw_members = g.get("members", [])
+        members_data = [
+            {
+                "id": str(m.get("userId")) if isinstance(m, dict) else str(m),
+                "name": m.get("name", "Member") if isinstance(m, dict) else "Member",
+                "avatar": None
+            }
+            for m in raw_members
+        ]
+
         formatted_groups.append({
-            "id": str(g["_id"]),
+            "id": group_id,
             "name": g.get("name", ""),
-            "memberCount": len(g.get("members", [])),
-            "members": [
-                {"name": "Member", "avatar": None}
-                for _ in g.get("members", [])
-            ],
-            "nextMeeting": None,  # TODO: Get from meetings
+            "memberCount": len(raw_members),
+            "members": members_data,
+            "nextMeeting": next_meeting_data,
         })
 
     return success_response({
@@ -146,13 +168,15 @@ async def get_group(
 async def get_group_meetings(
     group_id: str,
     user: Annotated[dict, Depends(require_auth)],
+    upcoming: bool = Query(default=False, description="Filter to upcoming meetings only"),
 ):
     """Get meetings for a group."""
     meeting_service = get_meeting_service()
 
     meetings = await meeting_service.get_meetings_for_group(
         group_id=group_id,
-        upcoming=True
+        upcoming=upcoming,
+        limit=20
     )
 
     return success_response({
@@ -160,8 +184,11 @@ async def get_group_meetings(
             {
                 "id": str(m["_id"]),
                 "title": m.get("title", ""),
-                "groupName": "",
-                "date": m.get("scheduledAt", "").isoformat() if m.get("scheduledAt") else "",
+                "scheduledAt": m.get("scheduledAt").isoformat() if m.get("scheduledAt") else None,
+                "duration": m.get("duration", 60),
+                "meetingLink": m.get("meetingLink"),
+                "status": m.get("status", "scheduled"),
+                "timezone": m.get("timezone", "UTC"),
             }
             for m in meetings
         ]
@@ -200,13 +227,14 @@ async def schedule_meeting(
         description=body.description,
         scheduled_at=body.scheduledAt,
         duration=body.duration,
-        meeting_timezone="UTC"
+        meeting_link=body.meetingLink,
+        meeting_timezone=body.timezone or "UTC"
     )
 
     return success_response({
         "id": str(meeting["_id"]),
         "title": meeting.get("title", ""),
-        "groupName": "",
+        "meetingLink": meeting.get("meetingLink"),
         "date": meeting.get("scheduledAt", ""),
     })
 

@@ -89,6 +89,14 @@ class AvailabilityService:
         user_oid = ObjectId(user_id)
         group_oid = ObjectId(group_id)
 
+        user_name = "Member"
+        group = await self._groups_collection.find_one({"_id": group_oid})
+        if group:
+            for m in group.get("members", []):
+                if isinstance(m, dict) and str(m.get("userId")) == user_id:
+                    user_name = m.get("name", "Member")
+                    break
+
         existing = await self._availability_collection.find_one({"groupId": group_oid})
 
         if existing:
@@ -104,6 +112,7 @@ class AvailabilityService:
                         "$set": {
                             "memberAvailability.$.slots": validated_slots,
                             "memberAvailability.$.timezone": user_timezone,
+                            "memberAvailability.$.name": user_name,
                             "memberAvailability.$.updatedAt": now,
                             "updatedAt": now
                         }
@@ -117,6 +126,7 @@ class AvailabilityService:
                         "$push": {
                             "memberAvailability": {
                                 "userId": user_oid,
+                                "name": user_name,
                                 "slots": validated_slots,
                                 "timezone": user_timezone,
                                 "updatedAt": now
@@ -132,6 +142,7 @@ class AvailabilityService:
                 "memberAvailability": [
                     {
                         "userId": user_oid,
+                        "name": user_name,
                         "slots": validated_slots,
                         "timezone": user_timezone,
                         "updatedAt": now
@@ -164,7 +175,11 @@ class AvailabilityService:
         if not group:
             return []
 
-        member_ids = [str(m) for m in group.get("members", [])]
+        raw_members = group.get("members", [])
+        member_ids = [
+            str(m.get("userId")) if isinstance(m, dict) else str(m)
+            for m in raw_members
+        ]
         if not member_ids:
             return []
 
@@ -218,7 +233,11 @@ class AvailabilityService:
                 "allMembersSet": False
             }
 
-        member_ids = [str(m) for m in group.get("members", [])]
+        raw_members = group.get("members", [])
+        member_ids = [
+            str(m.get("userId")) if isinstance(m, dict) else str(m)
+            for m in raw_members
+        ]
         total_members = len(member_ids)
 
         group_avail = await self._availability_collection.find_one(
