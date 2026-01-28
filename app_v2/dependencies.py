@@ -48,6 +48,9 @@ from app_v2.services.notifications import NotificationService
 # Feedback services
 from app_v2.services.feedback import FeedbackService
 
+# Learning services
+from app_v2.services.learning import LearningQueueService
+
 # Calendar services
 from app_v2.services.calendar.google_calendar_service import GoogleCalendarService
 from app_v2.services.calendar.token_encryption import TokenEncryptionService
@@ -141,6 +144,9 @@ _notification_service: Optional[NotificationService] = None
 
 # Feedback
 _feedback_service: Optional[FeedbackService] = None
+
+# Learning
+_learning_queue_service: Optional[LearningQueueService] = None
 
 # Calendar
 _google_calendar_service: Optional[GoogleCalendarService] = None
@@ -299,6 +305,13 @@ def init_feedback_services(hub_db: AsyncIOMotorDatabase) -> None:
     global _feedback_service
 
     _feedback_service = FeedbackService(db=hub_db)
+
+
+def init_learning_queue_services(db: AsyncIOMotorDatabase) -> None:
+    """Initialize learning queue services."""
+    global _learning_queue_service
+
+    _learning_queue_service = LearningQueueService(db=db)
 
 
 def init_calendar_services(db: AsyncIOMotorDatabase) -> None:
@@ -548,6 +561,8 @@ def init_all_services(
     init_media_services(db)
     init_organization_services(db)
 
+    init_learning_queue_services(db)
+
     if hub_db is not None:
         init_hub_services(hub_db, db)
         init_feedback_services(hub_db)
@@ -750,6 +765,17 @@ def get_feedback_service() -> FeedbackService:
     if _feedback_service is None:
         raise RuntimeError("Feedback services not initialized.")
     return _feedback_service
+
+
+# ─────────────────────────────────────────────────────────────────
+# Learning getters
+# ─────────────────────────────────────────────────────────────────
+
+def get_learning_queue_service() -> LearningQueueService:
+    """Get learning queue service instance."""
+    if _learning_queue_service is None:
+        raise RuntimeError("Learning queue services not initialized.")
+    return _learning_queue_service
 
 
 # ─────────────────────────────────────────────────────────────────

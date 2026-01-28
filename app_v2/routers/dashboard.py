@@ -14,7 +14,10 @@ from app_v2.dependencies import (
     get_checkin_service,
     get_checkin_analytics,
     get_insight_service,
+    get_learning_queue_service,
+    get_hub_db,
 )
+from app_v2.pipelines.learning import get_todays_focus_pipeline
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
@@ -32,11 +35,10 @@ async def get_dashboard(
     Returns consolidated data including today's check-in, streak,
     insights count, and upcoming events.
     """
-    from app_v2.dependencies import get_checkin_service, get_checkin_analytics, get_insight_service
-
     checkin_service = get_checkin_service()
     checkin_analytics = get_checkin_analytics()
     insight_service = get_insight_service()
+    learning_queue_service = get_learning_queue_service()
 
     user_id = str(user["_id"])
 
@@ -48,6 +50,26 @@ async def get_dashboard(
 
     # Get insights count
     insights_count = await insight_service.get_unread_count(user_id)
+
+    # Get today's learning focus
+    try:
+        hub_db = get_hub_db()
+        print(f"[DASHBOARD] Got hub_db, calling pipeline for user {user_id}")
+        todays_focus = await get_todays_focus_pipeline(
+            queue_service=learning_queue_service,
+            hub_db=hub_db,
+            user_id=user_id,
+        )
+        print(f"[DASHBOARD] Today's focus result: {todays_focus}")
+    except RuntimeError as e:
+        # Hub database not configured
+        print(f"[DASHBOARD] RuntimeError: {e}")
+        todays_focus = None
+    except Exception as e:
+        print(f"[DASHBOARD] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+        todays_focus = None
 
     # Format today's checkin data
     checkin_data = None
@@ -64,6 +86,6 @@ async def get_dashboard(
         "todaysCheckin": checkin_data,
         "streak": streak,
         "insightsCount": insights_count,
-        "todaysFocus": None,  # Placeholder for learning module focus
+        "todaysFocus": todays_focus,
         "nextCircle": None,   # Placeholder for next circle meeting
     })
