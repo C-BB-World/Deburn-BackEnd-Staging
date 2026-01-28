@@ -45,6 +45,9 @@ from app_v2.services.circles.availability_service import AvailabilityService
 # Notification services
 from app_v2.services.notifications import NotificationService
 
+# Feedback services
+from app_v2.services.feedback import FeedbackService
+
 # Calendar services
 from app_v2.services.calendar.google_calendar_service import GoogleCalendarService
 from app_v2.services.calendar.token_encryption import TokenEncryptionService
@@ -135,6 +138,9 @@ _circles_availability_service: Optional[AvailabilityService] = None
 
 # Notifications
 _notification_service: Optional[NotificationService] = None
+
+# Feedback
+_feedback_service: Optional[FeedbackService] = None
 
 # Calendar
 _google_calendar_service: Optional[GoogleCalendarService] = None
@@ -286,6 +292,13 @@ def init_notification_services(db: AsyncIOMotorDatabase) -> None:
     global _notification_service
 
     _notification_service = NotificationService(db=db)
+
+
+def init_feedback_services(hub_db: AsyncIOMotorDatabase) -> None:
+    """Initialize feedback services."""
+    global _feedback_service
+
+    _feedback_service = FeedbackService(db=hub_db)
 
 
 def init_calendar_services(db: AsyncIOMotorDatabase) -> None:
@@ -537,6 +550,7 @@ def init_all_services(
 
     if hub_db is not None:
         init_hub_services(hub_db, db)
+        init_feedback_services(hub_db)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -725,6 +739,17 @@ def get_notification_service() -> NotificationService:
     if _notification_service is None:
         raise RuntimeError("Notification services not initialized.")
     return _notification_service
+
+
+# ─────────────────────────────────────────────────────────────────
+# Feedback getters
+# ─────────────────────────────────────────────────────────────────
+
+def get_feedback_service() -> FeedbackService:
+    """Get feedback service instance."""
+    if _feedback_service is None:
+        raise RuntimeError("Feedback services not initialized.")
+    return _feedback_service
 
 
 # ─────────────────────────────────────────────────────────────────
