@@ -1,7 +1,5 @@
 """
 Pydantic models for Circles system request/response validation.
-
-Matches the API documentation in docs/v2/architecture/api/circles.md
 """
 
 from datetime import datetime
@@ -9,48 +7,34 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
-# =============================================================================
-# Request Schemas
-# =============================================================================
-
 class AvailabilitySlot(BaseModel):
-    """Single availability slot."""
-    dayOfWeek: int = Field(..., ge=0, le=6, description="0=Sunday, 6=Saturday")
-    startTime: str = Field(..., description="HH:MM format")
-    endTime: str = Field(..., description="HH:MM format")
+    day: int = Field(..., ge=0, le=6)
+    hour: int = Field(..., ge=0, le=23)
 
 
 class UpdateAvailabilityRequest(BaseModel):
-    """PUT /api/circles/availability"""
+    groupId: str
     slots: List[AvailabilitySlot]
 
 
 class ScheduleMeetingRequest(BaseModel):
-    """POST /api/circles/groups/:groupId/meetings"""
     title: str
     description: Optional[str] = None
-    scheduledAt: str  # ISO 8601 datetime
-    duration: int  # Duration in minutes
+    scheduledAt: str
+    duration: int
     location: Optional[str] = None
 
 
 class UpdateAttendanceRequest(BaseModel):
-    """POST /api/circles/meetings/:meetingId/attendance"""
     attending: bool
 
 
-# =============================================================================
-# Response Schemas (used inside success_response data)
-# =============================================================================
-
 class GroupMember(BaseModel):
-    """Group member in responses."""
     name: str
     avatar: Optional[str] = None
 
 
 class Group(BaseModel):
-    """Circle group in responses."""
     id: str
     name: str
     memberCount: int
@@ -59,38 +43,29 @@ class Group(BaseModel):
 
 
 class UpcomingMeeting(BaseModel):
-    """Upcoming meeting in responses."""
     id: str
     title: str
     groupName: str
-    date: str  # ISO 8601 datetime
+    date: str
 
 
 class Invitation(BaseModel):
-    """Circle invitation in responses."""
     id: str
     groupName: str
     invitedBy: str
 
 
-# =============================================================================
-# Admin Request Schemas
-# =============================================================================
-
 class InviteeItem(BaseModel):
-    """Single invitee for bulk invitations."""
     email: str
     firstName: Optional[str] = None
     lastName: Optional[str] = None
 
 
 class SendInvitationsRequest(BaseModel):
-    """POST /api/circles/pools/:id/invitations"""
     invitees: List[InviteeItem]
 
 
 class CreatePoolRequest(BaseModel):
-    """POST /api/circles/pools"""
     name: str
     organizationId: str
     topic: Optional[str] = None
@@ -100,6 +75,5 @@ class CreatePoolRequest(BaseModel):
 
 
 class MoveMemberRequest(BaseModel):
-    """POST /api/circles/pools/:poolId/groups/:groupId/move-member"""
-    memberId: str = Field(..., description="User ID of member to move")
-    toGroupId: str = Field(..., description="Target group ID")
+    memberId: str
+    toGroupId: str

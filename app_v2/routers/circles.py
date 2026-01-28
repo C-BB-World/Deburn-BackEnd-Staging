@@ -81,23 +81,22 @@ async def get_my_invitations(
 @router.get("/availability")
 async def get_user_availability(
     user: Annotated[dict, Depends(require_auth)],
+    groupId: str = None,
 ):
-    """Get current user's availability slots."""
+    """Get current user's availability slots for a specific group."""
     availability_service = get_availability_service()
     user_id = str(user["_id"])
 
-    result = await availability_service.get_availability(user_id)
+    if not groupId:
+        return success_response({"slots": [], "groupId": None})
+
+    result = await availability_service.get_availability(user_id, groupId)
 
     slots = []
     if result:
-        for s in result.get("slots", []):
-            slots.append({
-                "dayOfWeek": s.get("dayOfWeek", s.get("day", 0)),
-                "startTime": s.get("startTime", f"{s.get('hour', 0):02d}:00"),
-                "endTime": s.get("endTime", f"{s.get('hour', 0) + 1:02d}:00"),
-            })
+        slots = result.get("slots", [])
 
-    return success_response({"slots": slots})
+    return success_response({"slots": slots, "groupId": groupId})
 
 
 @router.put("/availability")
@@ -105,18 +104,20 @@ async def update_availability(
     body: UpdateAvailabilityRequest,
     user: Annotated[dict, Depends(require_auth)],
 ):
-    """Update user's weekly availability."""
+    """Update user's weekly availability for a specific group."""
     availability_service = get_availability_service()
     user_id = str(user["_id"])
+    group_id = body.groupId
 
     slots = [s.model_dump() for s in body.slots]
     await availability_service.update_availability(
         user_id=user_id,
+        group_id=group_id,
         slots=slots,
         user_timezone="UTC"
     )
 
-    return success_response({"slots": slots})
+    return success_response({"groupId": group_id, "slots": slots})
 
 
 @router.get("/groups/{group_id}")
@@ -177,14 +178,7 @@ async def get_common_availability(
 
     result = await availability_service.get_group_availability_status(group_id)
 
-    slots = []
-    for s in result.get("commonSlots", []):
-        slots.append({
-            "dayOfWeek": s.get("dayOfWeek", s.get("day", 0)),
-            "startTime": s.get("startTime", ""),
-            "endTime": s.get("endTime", ""),
-            "availableCount": s.get("availableCount", 0),
-        })
+    slots = result.get("commonSlots", [])
 
     return success_response({"slots": slots})
 
