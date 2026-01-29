@@ -271,3 +271,90 @@ class AvailabilityService:
             "membersWithoutAvailability": members_without_availability,
             "allMembersSet": all_members_set
         }
+
+    async def get_detailed_availability(
+        self,
+        group_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get detailed availability for a group, showing all slots with member counts.
+
+        Returns:
+            dict with:
+                - totalMembers: total group size
+                - members: list of all member names
+                - slots: list of {day, hour, availableCount, availableMembers}
+        """
+        group = await self._groups_collection.find_one({"_id": ObjectId(group_id)})
+
+        if not group:
+            return {
+                "totalMembers": 0,
+                "members": [],
+                "slots": []
+            }
+
+        raw_members = group.get("members", [])
+        member_ids = []
+        member_names_map = {}
+
+        for m in raw_members:
+            if isinstance(m, dict):
+                mid = str(m.get("userId"))
+                name = m.get("name", "Member")
+            else:
+                mid = str(m)
+                name = "Member"
+            member_ids.append(mid)
+            member_names_map[mid] = name
+
+        total_members = len(member_ids)
+        all_member_names = list(member_names_map.values())
+
+        group_avail = await self._availability_collection.find_one(
+            {"groupId": ObjectId(group_id)}
+        )
+
+        if not group_avail:
+            return {
+                "totalMembers": total_members,
+                "members": all_member_names,
+                "slots": []
+            }
+
+        member_availability = group_avail.get("memberAvailability", [])
+
+        # Build a map of slot -> list of available member names
+        slot_members: Dict[tuple, List[str]] = {}
+
+        for member in member_availability:
+            user_id = str(member.get("userId"))
+            if user_id not in member_ids:
+                continue
+
+            member_name = member.get("name") or member_names_map.get(user_id, "Member")
+            slots = member.get("slots", [])
+
+            for slot in slots:
+                key = (slot.get("day"), slot.get("hour"))
+                if key[0] is None or key[1] is None:
+                    continue
+                if key not in slot_members:
+                    slot_members[key] = []
+                slot_members[key].append(member_name)
+
+        # Convert to list format
+        slots_list = []
+        for (day, hour), available_members in sorted(slot_members.items()):
+            slots_list.append({
+                "day": day,
+                "hour": hour,
+                "availableCount": len(available_members),
+                "availableMembers": available_members
+            })
+
+        return {
+            "totalMembers": total_members,
+            "members": all_member_names,
+            "slots": slots_list
+        }

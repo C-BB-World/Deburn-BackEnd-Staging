@@ -1065,10 +1065,20 @@ async def get_group_meetings(group_id: str, authorization: Optional[str] = Heade
 @app.get("/api/circles/groups/{group_id}/common-availability")
 async def get_group_common_availability(group_id: str, authorization: Optional[str] = Header(None)):
     require_auth(authorization)
+    # Return slots with availability counts and member names
+    # day: 0=Sunday, 1=Monday, ..., 6=Saturday
+    # hour: 0-23
+    all_members = ["Alice Chen", "Bob Smith", "Carol Davis", "David Lee", "Emma Wilson"]
     return success_response({
+        "totalMembers": 5,
+        "members": all_members,
         "slots": [
-            {"dayOfWeek": "tuesday", "startTime": "10:00", "endTime": "11:00", "availableCount": 5},
-            {"dayOfWeek": "thursday", "startTime": "14:00", "endTime": "15:00", "availableCount": 4},
+            {"day": 2, "hour": 10, "availableCount": 5, "availableMembers": all_members},
+            {"day": 2, "hour": 14, "availableCount": 4, "availableMembers": ["Alice Chen", "Bob Smith", "Carol Davis", "David Lee"]},
+            {"day": 4, "hour": 10, "availableCount": 5, "availableMembers": all_members},
+            {"day": 4, "hour": 14, "availableCount": 3, "availableMembers": ["Alice Chen", "Carol Davis", "Emma Wilson"]},
+            {"day": 4, "hour": 15, "availableCount": 2, "availableMembers": ["Bob Smith", "Emma Wilson"]},
+            {"day": 5, "hour": 9, "availableCount": 4, "availableMembers": ["Alice Chen", "Bob Smith", "David Lee", "Emma Wilson"]},
         ]
     })
 

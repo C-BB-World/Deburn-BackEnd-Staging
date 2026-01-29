@@ -200,14 +200,17 @@ async def get_common_availability(
     group_id: str,
     user: Annotated[dict, Depends(require_auth)],
 ):
-    """Get common availability slots for a group."""
-    availability_service = get_availability_service()
+    """
+    Get availability slots for a group with member counts.
 
-    result = await availability_service.get_group_availability_status(group_id)
+    Returns all slots where at least one member is available,
+    with counts and names of who can attend each slot.
+    """
+    from app_v2.pipelines.availability import get_group_availability_for_scheduling
 
-    slots = result.get("commonSlots", [])
+    result = await get_group_availability_for_scheduling(group_id)
 
-    return success_response({"slots": slots})
+    return success_response(result)
 
 
 @router.post("/groups/{group_id}/meetings")
