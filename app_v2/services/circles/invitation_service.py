@@ -10,6 +10,8 @@ import logging
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
+from app_v2.services.email.email_service import EmailService
+
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -113,7 +115,6 @@ class InvitationService:
 
             # Send invitation email (non-blocking - invitation saved even if email fails)
             try:
-                from app_v2.services.email.email_service import EmailService
                 email_service = EmailService()
                 await email_service.send_circle_invitation_email(
                     to_email=email,
