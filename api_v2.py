@@ -33,6 +33,7 @@ from app_v2.routers import (
     dashboard_router,
     admin_router,
     learning_router,
+    article_image_router,
     profile_router,
     conversations_router,
     feedback_router,
@@ -154,6 +155,7 @@ app.include_router(hub_router, prefix=API_PREFIX, tags=["Hub"])
 app.include_router(dashboard_router, prefix=API_PREFIX, tags=["Dashboard"])
 app.include_router(admin_router, prefix=API_PREFIX, tags=["Admin"])
 app.include_router(learning_router, prefix=API_PREFIX, tags=["Learning"])
+app.include_router(article_image_router, prefix=API_PREFIX, tags=["Learning"])
 app.include_router(profile_router, prefix=API_PREFIX, tags=["Profile"])
 app.include_router(conversations_router, prefix=API_PREFIX, tags=["Conversations"])
 app.include_router(feedback_router, prefix=API_PREFIX, tags=["Feedback"])

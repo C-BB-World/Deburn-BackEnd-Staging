@@ -34,6 +34,9 @@ class ContentItemResponse(BaseModel):
     coachPriority: int = 0
     coachEnabled: bool = False
     progress: Optional[int] = None
+    hasImageEn: bool = False
+    hasImageSv: bool = False
+    hasImage: bool = False
 
     class Config:
         from_attributes = True

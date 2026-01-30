@@ -8,6 +8,7 @@ import logging
 from typing import Annotated, Optional, List
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import Response
 
 from app_v2.dependencies import (
     require_auth,
@@ -31,6 +32,9 @@ from common.utils.exceptions import NotFoundException
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/learning", tags=["learning"])
+
+# Also create a router for article images at /api/article-image
+article_image_router = APIRouter(prefix="/article-image", tags=["learning"])
 
 
 def _merge_progress(content: dict, progress_map: dict) -> dict:
@@ -153,3 +157,28 @@ async def get_coach_recommendations(
         limit=body.limit
     )
     return [ContentItemResponse(**item) for item in items]
+
+
+# Article Image Endpoint
+@article_image_router.get("/{content_id}/{lang}")
+async def get_article_image(
+    content_id: str,
+    lang: str,
+    user: Annotated[dict, Depends(require_auth)],
+    content_service: Annotated[ContentService, Depends(get_content_service)],
+):
+    """Get article image for a content item."""
+    if lang not in ("en", "sv"):
+        raise HTTPException(status_code=400, detail="Invalid language. Use 'en' or 'sv'.")
+
+    image_data = await content_service.get_article_image(content_id, lang)
+    if not image_data:
+        raise NotFoundException(message="Article image not found", code="NOT_FOUND")
+
+    return Response(
+        content=image_data["data"],
+        media_type=image_data["mime_type"],
+        headers={
+            "Cache-Control": "public, max-age=86400",
+        }
+    )

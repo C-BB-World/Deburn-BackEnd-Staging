@@ -335,7 +335,61 @@ class ContentService:
         """Format database item for response."""
         if "_id" in item:
             item["id"] = str(item.pop("_id"))
+
+        # Add hasImage flags based on mime type presence (single field for both languages)
+        has_image = bool(item.get("articleImageMimeType"))
+        item["hasImageEn"] = has_image
+        item["hasImageSv"] = has_image
+        item["hasImage"] = has_image
+
         return item
+
+    async def get_article_image(
+        self,
+        content_id: str,
+        lang: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get article image binary data for a content item.
+
+        Args:
+            content_id: Content item ID
+            lang: Language code ('en' or 'sv')
+
+        Returns:
+            Dict with 'data' (bytes) and 'mime_type' (str), or None if not found
+        """
+        if not self._is_database_mode():
+            return None
+
+        try:
+            # Fetch both language images and the single mime type field
+            item = await self._content_collection.find_one(
+                {"_id": ObjectId(content_id)},
+                {"articleImageEn": 1, "articleImageSv": 1, "articleImageMimeType": 1}
+            )
+
+            if not item:
+                return None
+
+            # Get image data for requested language, fallback to English
+            if lang == "sv":
+                image_data = item.get("articleImageSv") or item.get("articleImageEn")
+            else:
+                image_data = item.get("articleImageEn")
+
+            mime_type = item.get("articleImageMimeType")
+
+            if not image_data or not mime_type:
+                return None
+
+            return {
+                "data": image_data,
+                "mime_type": mime_type,
+            }
+        except Exception as e:
+            logger.error(f"Error fetching article image: {e}")
+            return None
 
     def _validate_content_data(self, data: Dict[str, Any]) -> None:
         """Validate content data."""
