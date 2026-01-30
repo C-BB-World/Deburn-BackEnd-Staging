@@ -41,6 +41,7 @@ async def get_my_groups(
     """Get current user's circle groups."""
     group_service = get_group_service()
     meeting_service = get_meeting_service()
+    pool_service = get_pool_service()
     user_id = str(user["_id"])
 
     groups = await group_service.get_groups_for_user(user_id)
@@ -48,8 +49,20 @@ async def get_my_groups(
     formatted_groups = []
     user_oid = ObjectId(user_id)
 
+    # Collect unique pool IDs and fetch pools
+    pool_ids = list(set(str(g.get("poolId")) for g in groups if g.get("poolId")))
+    pools_map = {}
+    for pool_id in pool_ids:
+        try:
+            pool = await pool_service.get_pool(pool_id)
+            pools_map[pool_id] = pool
+        except Exception:
+            pass
+
     for g in groups:
         group_id = str(g["_id"])
+        pool_id = str(g.get("poolId")) if g.get("poolId") else None
+        pool = pools_map.get(pool_id) if pool_id else None
 
         # Get upcoming meetings and find the first one where user is an attendee
         upcoming_meetings = await meeting_service.get_meetings_for_group(
@@ -88,6 +101,12 @@ async def get_my_groups(
             "memberCount": len(raw_members),
             "members": members_data,
             "nextMeeting": next_meeting_data,
+            "pool": {
+                "id": pool_id,
+                "name": pool.get("name") if pool else None,
+                "topic": pool.get("topic") if pool else None,
+                "cadence": pool.get("cadence", "biweekly") if pool else "biweekly",
+            } if pool_id else None,
         })
 
     return success_response({
