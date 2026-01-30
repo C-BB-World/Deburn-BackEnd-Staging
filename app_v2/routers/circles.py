@@ -7,7 +7,6 @@ Provides endpoints for groups, meetings, invitations, and availability.
 import logging
 from typing import Annotated, Optional
 
-from bson import ObjectId
 from fastapi import APIRouter, Depends, Query
 
 from app_v2.dependencies import (
@@ -47,43 +46,20 @@ async def get_my_groups(
     groups = await group_service.get_groups_for_user(user_id)
 
     formatted_groups = []
-    user_oid = ObjectId(user_id)
-
-    # Collect unique pool IDs and fetch pools
-    pool_ids = list(set(str(g.get("poolId")) for g in groups if g.get("poolId")))
-    pools_map = {}
-    for pool_id in pool_ids:
-        try:
-            pool = await pool_service.get_pool(pool_id)
-            pools_map[pool_id] = pool
-        except Exception:
-            pass
-
     for g in groups:
         group_id = str(g["_id"])
-        pool_id = str(g.get("poolId")) if g.get("poolId") else None
-        pool = pools_map.get(pool_id) if pool_id else None
-
-        # Get upcoming meetings and find the first one where user is an attendee
-        upcoming_meetings = await meeting_service.get_meetings_for_group(
-            group_id=group_id, upcoming=True, limit=10
-        )
+        next_meeting = await meeting_service.get_next_meeting(group_id)
 
         next_meeting_data = None
-        for meeting in upcoming_meetings:
-            attendees = meeting.get("attendees")
-
-            # Backwards compat: if no attendees field, show to all members
-            if attendees is None or user_oid in attendees:
-                next_meeting_data = {
-                    "id": str(meeting["_id"]),
-                    "title": meeting.get("title", ""),
-                    "scheduledAt": meeting.get("scheduledAt").isoformat() if meeting.get("scheduledAt") else None,
-                    "duration": meeting.get("duration", 60),
-                    "meetingLink": meeting.get("meetingLink"),
-                    "timezone": meeting.get("timezone", "UTC"),
-                }
-                break  # Found the next meeting for this user
+        if next_meeting:
+            next_meeting_data = {
+                "id": str(next_meeting["_id"]),
+                "title": next_meeting.get("title", ""),
+                "scheduledAt": next_meeting.get("scheduledAt").isoformat() if next_meeting.get("scheduledAt") else None,
+                "duration": next_meeting.get("duration", 60),
+                "meetingLink": next_meeting.get("meetingLink"),
+                "timezone": next_meeting.get("timezone", "UTC"),
+            }
 
         raw_members = g.get("members", [])
         members_data = [

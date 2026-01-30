@@ -43,7 +43,6 @@ class MeetingService:
         self._meetings_collection = db["circlemeetings"]
         self._groups_collection = db["circlegroups"]
         self._pools_collection = db["circlepools"]
-        self._availability_collection = db["useravailabilities"]
 
     async def schedule_meeting(
         self,
@@ -115,40 +114,6 @@ class MeetingService:
         if not title:
             title = f"{group['name']} Meeting"
 
-        # Calculate attendees based on availability at the scheduled time
-        meeting_time = scheduled_at or (now + timedelta(days=7))
-        day_of_week = meeting_time.weekday()  # Monday=0, Sunday=6
-        # Convert to JS format (Sunday=0, Saturday=6)
-        day_of_week = (day_of_week + 1) % 7
-        hour_of_day = meeting_time.hour
-
-        # Get group member IDs
-        group_member_ids = [
-            str(m.get("userId")) if isinstance(m, dict) else str(m)
-            for m in group["members"]
-        ]
-
-        # Fetch availability and calculate attendees
-        from app_v2.pipelines.availability import get_attendees_for_slot
-        availability_doc = await self._availability_collection.find_one(
-            {"groupId": ObjectId(group_id)}
-        )
-
-        if availability_doc:
-            attendee_ids = get_attendees_for_slot(
-                member_availability=availability_doc.get("memberAvailability", []),
-                group_member_ids=group_member_ids,
-                day=day_of_week,
-                hour=hour_of_day
-            )
-            attendees = [ObjectId(uid) for uid in attendee_ids]
-        else:
-            # No availability set - include all members
-            attendees = [
-                ObjectId(m.get("userId")) if isinstance(m, dict) else ObjectId(m)
-                for m in group["members"]
-            ]
-
         attendance = [
             {
                 "userId": m.get("userId") if isinstance(m, dict) else m,
@@ -163,13 +128,12 @@ class MeetingService:
             "title": title,
             "description": description,
             "topic": topic,
-            "scheduledAt": meeting_time,
+            "scheduledAt": scheduled_at or (now + timedelta(days=7)),
             "duration": duration,
             "timezone": meeting_timezone,
             "meetingLink": meeting_link,
             "status": "scheduled",
             "scheduledBy": ObjectId(scheduled_by),
-            "attendees": attendees,  # Users available at this slot
             "calendarEvents": [],
             "attendance": attendance,
             "notes": None,
