@@ -79,3 +79,7 @@ class CreatePoolRequest(BaseModel):
 class MoveMemberRequest(BaseModel):
     memberId: str
     toGroupId: str
+
+
+class CreateGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)

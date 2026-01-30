@@ -25,6 +25,7 @@ from app_v2.schemas.circles import (
     SendInvitationsRequest,
     CreatePoolRequest,
     MoveMemberRequest,
+    CreateGroupRequest,
 )
 from common.utils import success_response
 
@@ -391,11 +392,16 @@ async def get_pools(
 
     Returns pools where the user is an organization admin.
     """
+    import os
     from bson import ObjectId
     from app_v2.dependencies import get_main_db
 
     db = get_main_db()
     user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
+
+    # Get group size constraints from env
+    min_group_size = int(os.environ.get("MIN_GROUP_SIZE", "3"))
+    max_group_size = int(os.environ.get("MAX_GROUP_SIZE", "6"))
 
     # Find organizations where user is admin
     org_members = db["organizationmembers"]
@@ -428,6 +434,8 @@ async def get_pools(
             "organizationId": str(p.get("organizationId")),
             "stats": p.get("stats", {}),
             "targetGroupSize": p.get("targetGroupSize", 4),
+            "minGroupSize": min_group_size,
+            "maxGroupSize": max_group_size,
             "cadence": p.get("cadence", "biweekly"),
             "createdAt": p.get("createdAt").isoformat() if p.get("createdAt") else None,
         }
@@ -443,9 +451,15 @@ async def get_pool(
     user: Annotated[dict, Depends(require_auth)],
 ):
     """Get pool details by ID."""
+    import os
+
     pool_service = get_pool_service()
 
     pool = await pool_service.get_pool(pool_id)
+
+    # Get group size constraints from env
+    min_group_size = int(os.environ.get("MIN_GROUP_SIZE", "3"))
+    max_group_size = int(os.environ.get("MAX_GROUP_SIZE", "6"))
 
     return success_response({
         "id": str(pool["_id"]),
@@ -455,6 +469,8 @@ async def get_pool(
         "description": pool.get("description"),
         "organizationId": str(pool.get("organizationId")),
         "targetGroupSize": pool.get("targetGroupSize", 4),
+        "minGroupSize": min_group_size,
+        "maxGroupSize": max_group_size,
         "cadence": pool.get("cadence", "biweekly"),
         "stats": pool.get("stats", {}),
         "invitationSettings": pool.get("invitationSettings", {}),
@@ -625,44 +641,94 @@ async def get_pool_groups(
 
     groups = await group_service.get_groups_for_pool(pool_id)
 
-    # Get user info for members
     users_collection = db["users"]
 
     formatted_groups = []
     for g in groups:
-        member_ids = g.get("members", [])
-
-        # Get member details
+        raw_members = g.get("members", [])
         members = []
-        if member_ids:
-            member_docs = await users_collection.find({
-                "_id": {"$in": member_ids}
-            }).to_list(length=50)
 
-            member_map = {str(m["_id"]): m for m in member_docs}
+        for m in raw_members:
+            # Handle both dict format {"userId": ObjectId, "name": "..."} and plain ObjectId
+            if isinstance(m, dict):
+                user_id = m.get("userId")
+                stored_name = m.get("name")
+            else:
+                user_id = m
+                stored_name = None
 
-            for mid in member_ids:
-                member = member_map.get(str(mid), {})
-                profile = member.get("profile", {})
-                first_name = profile.get("firstName", "")
-                last_name = profile.get("lastName", "")
-                name = f"{first_name} {last_name}".strip() or member.get("email", "Member")
+            # Ensure user_id is ObjectId for queries
+            if user_id and not isinstance(user_id, ObjectId):
+                try:
+                    user_id = ObjectId(str(user_id))
+                except Exception:
+                    user_id = None
 
-                members.append({
-                    "id": str(mid),
-                    "name": name,
-                    "avatar": profile.get("avatar"),
-                })
+            uid_str = str(user_id) if user_id else ""
+
+            # Use stored name first (from assign_groups), fall back to users collection
+            if stored_name and stored_name != "Member":
+                name = stored_name
+                avatar = None
+            else:
+                # Look up in users collection
+                user_doc = await users_collection.find_one({"_id": user_id}) if user_id else None
+                if user_doc:
+                    profile = user_doc.get("profile", {})
+                    # Try multiple name locations
+                    first_name = profile.get("firstName") or user_doc.get("firstName") or ""
+                    last_name = profile.get("lastName") or user_doc.get("lastName") or ""
+                    full_name = f"{first_name} {last_name}".strip()
+                    # Fall back chain: full name -> user.name -> email -> stored name -> "Member"
+                    name = full_name or user_doc.get("name") or user_doc.get("email") or stored_name or "Member"
+                    avatar = profile.get("avatar")
+                else:
+                    name = stored_name or "Member"
+                    avatar = None
+
+            members.append({
+                "id": uid_str,
+                "name": name,
+                "avatar": avatar,
+            })
 
         formatted_groups.append({
             "id": str(g["_id"]),
             "name": g.get("name", ""),
-            "memberCount": len(member_ids),
+            "memberCount": len(raw_members),
             "members": members,
             "leaderId": str(g.get("leaderId")) if g.get("leaderId") else None,
         })
 
     return success_response({"groups": formatted_groups})
+
+
+@router.post("/pools/{pool_id}/groups")
+async def create_group(
+    pool_id: str,
+    body: CreateGroupRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Create a new empty group in a pool.
+
+    Only organization admins can create groups.
+    """
+    group_service = get_group_service()
+    user_id = str(user["_id"])
+
+    group = await group_service.create_group(
+        pool_id=pool_id,
+        name=body.name,
+        admin_id=user_id
+    )
+
+    return success_response({
+        "id": str(group["_id"]),
+        "name": group.get("name", ""),
+        "memberCount": 0,
+        "members": [],
+    })
 
 
 @router.post("/pools/{pool_id}/groups/{group_id}/move-member")

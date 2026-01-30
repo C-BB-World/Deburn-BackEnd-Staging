@@ -256,7 +256,6 @@ class GroupService:
         Move a member between groups (admin only).
 
         Raises:
-            ValidationException: If move would leave source group < 3 members
             ValidationException: If target group is full
         """
         from_group = await self.get_group(from_group_id)
@@ -265,12 +264,6 @@ class GroupService:
         pool = await self._pools_collection.find_one({"_id": from_group["poolId"]})
         if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
             raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
-
-        if len(from_group["members"]) <= self.MIN_GROUP_SIZE:
-            raise ValidationException(
-                message=f"Cannot leave source group with fewer than {self.MIN_GROUP_SIZE} members",
-                code="GROUP_TOO_SMALL"
-            )
 
         if len(to_group["members"]) >= self.MAX_GROUP_SIZE:
             raise ValidationException(
@@ -341,6 +334,69 @@ class GroupService:
         )
 
         return await self.get_group(group_id)
+
+    async def create_group(
+        self,
+        pool_id: str,
+        name: str,
+        admin_id: str
+    ) -> Dict[str, Any]:
+        """
+        Create a new empty group in a pool (admin only).
+
+        Args:
+            pool_id: Pool to create group in
+            name: Group name
+            admin_id: Admin creating the group
+
+        Returns:
+            Created group document
+        """
+        pool = await self._pools_collection.find_one({"_id": ObjectId(pool_id)})
+        if not pool:
+            raise NotFoundException(message="Pool not found", code="POOL_NOT_FOUND")
+
+        if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
+            raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
+
+        # Check for duplicate name in pool
+        existing = await self._groups_collection.find_one({
+            "poolId": ObjectId(pool_id),
+            "name": name,
+            "status": "active"
+        })
+        if existing:
+            raise ValidationException(
+                message="A group with this name already exists",
+                code="DUPLICATE_GROUP_NAME"
+            )
+
+        now = datetime.now(timezone.utc)
+        group_doc = {
+            "poolId": ObjectId(pool_id),
+            "name": name,
+            "members": [],
+            "status": "active",
+            "leaderId": None,
+            "stats": {
+                "meetingsHeld": 0,
+                "totalMeetingMinutes": 0,
+                "lastMeetingAt": None
+            },
+            "createdAt": now,
+            "updatedAt": now
+        }
+
+        result = await self._groups_collection.insert_one(group_doc)
+        group_doc["_id"] = result.inserted_id
+
+        await self._pools_collection.update_one(
+            {"_id": ObjectId(pool_id)},
+            {"$inc": {"stats.totalGroups": 1}}
+        )
+
+        logger.info(f"Created empty group '{name}' in pool {pool_id}")
+        return group_doc
 
     async def _is_org_admin(self, organization_id: str, user_id: str) -> bool:
         """Check if user is admin of organization."""
