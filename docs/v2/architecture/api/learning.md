@@ -34,7 +34,10 @@ No request body. Requires authentication.
         "videoAvailableInSv": true,
         "purpose": "Description of the content purpose",
         "sortOrder": 1,
-        "hasContent": true
+        "hasContent": true,
+        "hasImage": true,
+        "hasImageEn": true,
+        "hasImageSv": true
       }
     ]
   }
@@ -63,11 +66,48 @@ No request body. Requires authentication.
       videoAvailableInSv: boolean,   // Video available in Swedish
       purpose: string | null,        // Content purpose/description
       sortOrder: number,             // Sort order
-      hasContent: boolean            // Whether content is available (false = grey out)
+      hasContent: boolean,           // Whether content is available (false = grey out)
+      hasImage: boolean,             // Whether article has an image
+      hasImageEn: boolean,           // Whether English image exists
+      hasImageSv: boolean            // Whether Swedish image exists
     }>
   }
 }
 ```
+
+---
+
+## GET /api/learning/content/{content_id}
+
+Fetches a single content item by ID.
+
+**Path Parameters:**
+- `content_id` - Content item ID
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "item": {
+      "id": "679abc123...",
+      "contentType": "text_article",
+      "category": "leadership",
+      "titleEn": "Article Title",
+      "titleSv": "Artikelrubrik",
+      "lengthMinutes": 5,
+      "hasContent": true,
+      "hasImage": true,
+      "hasImageEn": true,
+      "hasImageSv": true
+    }
+  }
+}
+```
+
+**Error Responses:**
+- `400` - Invalid content ID
+- `404` - Content not found
 
 ---
 
@@ -85,6 +125,31 @@ Binary audio data with appropriate `Content-Type` header (e.g., `audio/mpeg`).
 **Error Responses:**
 - `400` - Invalid language (must be 'en' or 'sv')
 - `404` - Audio not found
+
+---
+
+## GET /api/article-image/{content_id}/{language}
+
+Fetches article image for a content item.
+
+**Path Parameters:**
+- `content_id` - Content item ID
+- `language` - `en` or `sv`
+
+**Response:**
+Binary image data with appropriate `Content-Type` header (e.g., `image/jpeg`, `image/png`).
+
+**Headers:**
+- `Content-Type` - Image MIME type
+- `Cache-Control: public, max-age=86400` - 24 hour cache
+
+**Fallback Behavior:**
+- If Swedish (`sv`) is requested but no Swedish image exists, returns English image
+- If no image exists for the requested language, returns `404`
+
+**Error Responses:**
+- `400` - Invalid content ID or language
+- `404` - Content not found or no image available
 
 ---
 
@@ -122,3 +187,13 @@ The `hasContent` field is computed based on content type:
 - `video_link`: `true` if `videoUrl` exists
 
 Use this to grey out content cards that don't have actual content yet.
+
+---
+
+## hasImage Logic
+
+The `hasImage`, `hasImageEn`, and `hasImageSv` fields indicate whether an article image is available:
+
+- All three flags are `true` if `articleImageMimeType` field exists in the database
+- Currently uses a single image for both languages (Swedish falls back to English)
+- Use these flags to conditionally fetch and display article images
