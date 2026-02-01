@@ -199,6 +199,19 @@ async def get_group_meetings(
         limit=20
     )
 
+    # Filter out meetings where current user has declined
+    user_id = user["_id"]
+    filtered_meetings = []
+    for m in meetings:
+        attendance = m.get("attendance", [])
+        user_attendance = next(
+            (a for a in attendance if a.get("userId") == user_id),
+            None
+        )
+        # Include meeting if user hasn't declined
+        if not user_attendance or user_attendance.get("status") != "declined":
+            filtered_meetings.append(m)
+
     return success_response({
         "meetings": [
             {
@@ -210,7 +223,7 @@ async def get_group_meetings(
                 "status": m.get("status", "scheduled"),
                 "timezone": m.get("timezone", "UTC"),
             }
-            for m in meetings
+            for m in filtered_meetings
         ]
     })
 
@@ -460,7 +473,7 @@ async def cancel_meeting(
 
     await meeting_service.cancel_meeting(
         meeting_id=meeting_id,
-        cancelled_by=str(user["_id"])
+        user_id=str(user["_id"])
     )
 
     return success_response({"message": "Meeting cancelled"})
