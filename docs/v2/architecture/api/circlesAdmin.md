@@ -382,6 +382,120 @@ Deletes a circle group (admin only).
 
 ---
 
+## POST /api/circles/pools/:poolId/groups
+
+Creates a new empty group in a pool (admin only).
+
+**Request Body:**
+```json
+{
+  "name": "Circle D"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "grp_456",
+    "name": "Circle D",
+    "memberCount": 0
+  }
+}
+```
+
+**Error Responses:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `POOL_NOT_FOUND` | 404 | Pool does not exist |
+| `DUPLICATE_GROUP_NAME` | 400 | A group with this name already exists |
+
+---
+
+## POST /api/circles/pools/:poolId/groups/:groupId/add-member
+
+Adds a latecomer to an existing group (admin only). Used for users who accepted an invitation after groups were already assigned.
+
+**Request Body:**
+```json
+{
+  "userId": "user_123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Member added successfully",
+    "group": {
+      "id": "grp_123",
+      "name": "Circle A",
+      "memberCount": 5
+    },
+    "addedMember": {
+      "id": "user_123",
+      "name": "John Doe"
+    }
+  }
+}
+```
+
+**Error Responses:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `GROUP_FULL` | 400 | Group already has 6 members |
+| `ALREADY_MEMBER` | 400 | User is already in this group |
+| `USER_NOT_FOUND` | 404 | User does not exist |
+
+**Side Effects:**
+- User is added to the group's `members` array in `circlegroups` collection
+
+---
+
+## POST /api/circles/pools/:poolId/groups/:groupId/remove-member
+
+Removes a member from a group AND deletes their invitation (admin only). Effectively makes it as if they were never invited.
+
+**Request Body:**
+```json
+{
+  "userId": "user_123"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Member removed successfully",
+    "group": {
+      "id": "grp_123",
+      "name": "Circle A",
+      "memberCount": 4
+    },
+    "removedMember": {
+      "id": "user_123",
+      "name": "John Doe"
+    }
+  }
+}
+```
+
+**Error Responses:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `NOT_GROUP_MEMBER` | 400 | User is not a member of this group |
+
+**Side Effects:**
+- Member is removed from the group's `members` array in `circlegroups` collection
+- Member's invitation is deleted from `circleinvitations` collection
+
+---
+
 ## Error Responses
 
 ```json
@@ -424,6 +538,9 @@ All endpoints have been implemented and tested.
 | `GET /api/circles/pools/:id/groups` | ✅ Complete | `app_v2/routers/circles.py` | 585-635 |
 | `POST /api/circles/pools/:id/groups/:groupId/move-member` | ✅ Complete | `app_v2/routers/circles.py` | 631-739 |
 | `POST /api/circles/pools/:id/groups/:groupId/delete` | ✅ Complete | `app_v2/routers/circles.py` | 742-797 |
+| `POST /api/circles/pools/:id/groups` | ✅ Complete | `app_v2/routers/circles.py` | - |
+| `POST /api/circles/pools/:id/groups/:groupId/add-member` | ✅ Complete | `app_v2/routers/circles.py` | - |
+| `POST /api/circles/pools/:id/groups/:groupId/remove-member` | ✅ Complete | `app_v2/routers/circles.py` | - |
 
 ### Key Implementation Notes
 
@@ -441,7 +558,7 @@ All endpoints have been implemented and tested.
 |---------|------|-------------|
 | `PoolService` | `app_v2/services/circles/pool_service.py` | `create_pool()`, `get_pools_for_organization()`, `get_pool()` |
 | `InvitationService` | `app_v2/services/circles/invitation_service.py` | `send_invitations()`, `get_invitations_for_pool()`, `cancel_invitation()` |
-| `GroupService` | `app_v2/services/circles/group_service.py` | `assign_groups()`, `get_groups_for_pool()` |
+| `GroupService` | `app_v2/services/circles/group_service.py` | `assign_groups()`, `get_groups_for_pool()`, `create_group()`, `add_member()`, `remove_member()` |
 
 ### Schemas
 
@@ -467,4 +584,10 @@ class CreatePoolRequest(BaseModel):
 class MoveMemberRequest(BaseModel):
     memberId: str = Field(..., description="User ID of member to move")
     toGroupId: str = Field(..., description="Target group ID")
+
+class AddMemberRequest(BaseModel):
+    userId: str = Field(..., description="User ID to add/remove")
+
+class CreateGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
 ```

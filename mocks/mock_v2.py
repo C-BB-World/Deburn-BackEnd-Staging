@@ -1264,6 +1264,50 @@ async def delete_group(pool_id: str, group_id: str, authorization: Optional[str]
     })
 
 
+@app.post("/api/circles/pools/{pool_id}/groups")
+async def create_group(pool_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return success_response({
+        "id": "grp_new123",
+        "name": "Circle D",
+        "memberCount": 0
+    })
+
+
+@app.post("/api/circles/pools/{pool_id}/groups/{group_id}/add-member")
+async def add_member_to_group(pool_id: str, group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return success_response({
+        "message": "Member added successfully",
+        "group": {
+            "id": group_id,
+            "name": "Circle A",
+            "memberCount": 5
+        },
+        "addedMember": {
+            "id": "usr_late123",
+            "name": "Late Joiner"
+        }
+    })
+
+
+@app.post("/api/circles/pools/{pool_id}/groups/{group_id}/remove-member")
+async def remove_member_from_group(pool_id: str, group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    return success_response({
+        "message": "Member removed successfully",
+        "group": {
+            "id": group_id,
+            "name": "Circle A",
+            "memberCount": 4
+        },
+        "removedMember": {
+            "id": "usr_removed123",
+            "name": "Removed User"
+        }
+    })
+
+
 # =============================================================================
 # CALENDAR ENDPOINTS (/api/calendar)
 # =============================================================================
