@@ -43,6 +43,7 @@ class EmailService:
         from_name: str = "Human First AI",
         team_name: Optional[str] = None,
         app_url: Optional[str] = None,
+        api_url: Optional[str] = None,
         smtp_host: Optional[str] = None,
         smtp_port: Optional[int] = None,
         smtp_user: Optional[str] = None,
@@ -57,7 +58,8 @@ class EmailService:
             from_email: Sender email address
             from_name: Sender display name
             team_name: Team name for email signatures
-            app_url: Base URL for links in emails
+            app_url: Base URL for frontend links in emails
+            api_url: Base URL for API links in emails (for redirects)
             smtp_host: SMTP server host
             smtp_port: SMTP server port
             smtp_user: SMTP username
@@ -68,6 +70,7 @@ class EmailService:
         self._from_name = from_name or os.environ.get("SMTP_FROM_NAME", "Human First AI")
         self._team_name = team_name or os.environ.get("EMAIL_TEAM_NAME", "The Human First AI Team")
         self._app_url = app_url or os.environ.get("APP_URL", "http://localhost:3000")
+        self._api_url = api_url or os.environ.get("API_URL", "http://localhost:8000")
 
         # Resend API key (can use SMTP_PASSWORD as fallback for existing configs)
         self._resend_api_key = (
@@ -174,20 +177,25 @@ class EmailService:
 <head>
     <meta charset="utf-8">
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
         .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
-        .footer {{ margin-top: 40px; color: #666; font-size: 14px; }}
+        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="header">
         <h1>{t.get("header", "Verify your email")}</h1>
+    </div>
         <p>{t.get("greeting", f"Hi {name},")}</p>
         <p>{t.get("body", "Thanks for signing up! Please verify your email address by clicking the button below:")}</p>
-        <a href="{verification_link}" class="button">{t.get("button", "Verify Email")}</a>
-        <p>{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #666;">{verification_link}</p>
+        <div style="text-align: center;">
+            <a href="{verification_link}" class="button">{t.get("button", "Verify Email")}</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{verification_link}</p>
         <p>{t.get("ignore_notice", "If you didn't create an account, you can safely ignore this email.")}</p>
         <div class="footer">
             <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
@@ -255,8 +263,8 @@ class EmailService:
             "expires_at": expires_at or ""
         })
 
-        accept_link = f"{self._app_url}/circles/invite?token={token}"
-        decline_link = f"{self._app_url}/circles/invite?token={token}&action=decline"
+        accept_link = f"{self._api_url}/api/circles/invitations/{token}/accept"
+        decline_link = f"{self._api_url}/api/circles/invitations/{token}/decline"
 
         # Build topic section
         topic_html = ""
@@ -288,11 +296,11 @@ class EmailService:
     <meta charset="utf-8">
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
         .header h1 {{ color: white; margin: 0; font-size: 28px; }}
         .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
         .button {{ display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; }}
-        .button-primary {{ background: #667eea; color: white; }}
+        .button-primary {{ background: #2D4A47; color: white; }}
         .button-secondary {{ background: #e5e7eb; color: #374151; }}
         .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
     </style>
@@ -311,7 +319,7 @@ class EmailService:
             <a href="{decline_link}" class="button button-secondary">{t.get("decline_button", "Decline")}</a>
         </div>
         <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #667eea; font-size: 14px;">{accept_link}</p>
+        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{accept_link}</p>
         {expiry_html}
         <div class="footer">
             <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
@@ -596,20 +604,26 @@ class EmailService:
 <head>
     <meta charset="utf-8">
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
         .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
-        .footer {{ margin-top: 40px; color: #666; font-size: 14px; }}
+        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="header">
         <h1>{t.get("header", "Reset your password")}</h1>
+    </div>
+    <div class="container">
         <p>{t.get("greeting", f"Hi {name},")}</p>
         <p>{t.get("body", "We received a request to reset your password. Click the button below to create a new password:")}</p>
-        <a href="{reset_link}" class="button">{t.get("button", "Reset Password")}</a>
-        <p>{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #666;">{reset_link}</p>
+        <div style="text-align: center;">
+            <a href="{reset_link}" class="button">{t.get("button", "Reset Password")}</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{reset_link}</p>
         <p>{t.get("ignore_notice", "If you didn't request a password reset, you can safely ignore this email.")}</p>
         <div class="footer">
             <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>

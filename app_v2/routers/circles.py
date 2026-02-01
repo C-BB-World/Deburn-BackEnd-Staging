@@ -9,10 +9,12 @@ import logging
 from typing import Annotated, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
+from fastapi.responses import RedirectResponse
 
 from app_v2.dependencies import (
     require_auth,
+    optional_auth,
     get_pool_service,
     get_group_service,
     get_meeting_service,
@@ -374,6 +376,78 @@ async def decline_invitation(
     await invitation_service.decline_invitation(token=token)
 
     return success_response({"message": "Invitation declined"})
+
+
+# Frontend URL for redirects
+APP_URL = os.environ.get("APP_URL", "http://localhost:3000")
+
+
+@router.get("/invitations/{token}/accept")
+async def accept_invitation_redirect(
+    token: str,
+    user: Annotated[Optional[dict], Depends(optional_auth)],
+):
+    """
+    Accept an invitation via email link (GET request).
+
+    If user is authenticated: accepts invitation and redirects to /circles.
+    If user is not authenticated: redirects to /login with inviteToken param.
+    """
+    if not user:
+        # Not authenticated - redirect to login with token
+        return RedirectResponse(
+            url=f"{APP_URL}/login?inviteToken={token}",
+            status_code=302
+        )
+
+    # User is authenticated - accept the invitation
+    invitation_service = get_invitation_service()
+
+    try:
+        await invitation_service.accept_invitation(
+            token=token,
+            user_id=str(user["_id"])
+        )
+        # Success - redirect to circles page
+        return RedirectResponse(url=f"{APP_URL}/circles", status_code=302)
+    except Exception as e:
+        logger.error(f"Failed to accept invitation: {e}")
+        # Error - redirect to circles with error param
+        return RedirectResponse(
+            url=f"{APP_URL}/circles?inviteError=true",
+            status_code=302
+        )
+
+
+@router.get("/invitations/{token}/decline")
+async def decline_invitation_redirect(
+    token: str,
+    user: Annotated[Optional[dict], Depends(optional_auth)],
+):
+    """
+    Decline an invitation via email link (GET request).
+
+    If user is authenticated: declines invitation and redirects to /circles.
+    If user is not authenticated: redirects to /login with declineToken param.
+    """
+    if not user:
+        # Not authenticated - redirect to login with token
+        return RedirectResponse(
+            url=f"{APP_URL}/login?declineToken={token}",
+            status_code=302
+        )
+
+    # User is authenticated - decline the invitation
+    invitation_service = get_invitation_service()
+
+    try:
+        await invitation_service.decline_invitation(token=token)
+        # Success - redirect to home/dashboard
+        return RedirectResponse(url=f"{APP_URL}/dashboard", status_code=302)
+    except Exception as e:
+        logger.error(f"Failed to decline invitation: {e}")
+        # Error - redirect to dashboard
+        return RedirectResponse(url=f"{APP_URL}/dashboard", status_code=302)
 
 
 @router.post("/meetings/{meeting_id}/cancel")
