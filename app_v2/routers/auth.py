@@ -84,6 +84,7 @@ async def register(
 
     # Create user in database
     print(f"[REGISTER] Creating user in MongoDB: {body.email}")
+    user_language = body.language if body.language in ["en", "sv"] else "en"
     user = await user_service.create_user(
         firebase_uid=firebase_uid,
         email=body.email,
@@ -92,6 +93,7 @@ async def register(
         profile={
             "firstName": body.firstName,
             "lastName": body.lastName,
+            "preferredLanguage": user_language,
         },
         consents=[
             {"type": "termsOfService", "accepted": body.consents.termsOfService, "version": "1.0"},
@@ -121,6 +123,7 @@ async def register(
             to_email=body.email,
             verification_link=verification_link,
             user_name=body.firstName,
+            language=user_language,
         )
         print(f"[REGISTER] Verification email sent to: {body.email}")
     except Exception as e:
@@ -207,12 +210,14 @@ async def get_session(
 
     Returns the current authenticated user's information.
     """
+    profile = user.get("profile", {})
     return success_response({
         "user": {
             "id": str(user["_id"]),
             "email": user.get("email"),
-            "firstName": user.get("profile", {}).get("firstName"),
-            "lastName": user.get("profile", {}).get("lastName"),
+            "firstName": profile.get("firstName"),
+            "lastName": profile.get("lastName"),
+            "preferredLanguage": profile.get("preferredLanguage", "en"),
             "isAdmin": user.get("isAdmin", False),
         }
     })
@@ -228,6 +233,7 @@ async def forgot_password(
     Sends a password reset link to the provided email if account exists.
     """
     firebase_auth = get_firebase_auth()
+    user_service = get_user_service()
     email_service = EmailService()
 
     try:
@@ -236,9 +242,22 @@ async def forgot_password(
 
         # Send email (if user exists, send_password_reset returns the link)
         if reset_link and "If the email exists" not in reset_link:
+            # Use language from request, fall back to user's stored preference
+            request_language = body.language if body.language in ["en", "sv"] else None
+            user = await user_service.get_user_by_email(body.email)
+            user_language = request_language or "en"
+            user_name = None
+            if user:
+                profile = user.get("profile", {})
+                if not request_language:
+                    user_language = profile.get("preferredLanguage") or "en"
+                user_name = profile.get("firstName") or user.get("firstName")
+
             await email_service.send_password_reset_email(
                 to_email=body.email,
                 reset_link=reset_link,
+                user_name=user_name,
+                language=user_language,
             )
     except Exception as e:
         # Don't reveal if user exists - always return success
@@ -286,16 +305,30 @@ async def resend_verification(
     Sends a new verification email to the provided address.
     """
     firebase_auth = get_firebase_auth()
+    user_service = get_user_service()
     email_service = EmailService()
 
     try:
         # Generate new verification link
         verification_link = await firebase_auth.send_verification_email(body.email)
 
+        # Use language from request, fall back to user's stored preference
+        request_language = body.language if body.language in ["en", "sv"] else None
+        user = await user_service.get_user_by_email(body.email)
+        user_language = request_language or "en"
+        user_name = None
+        if user:
+            profile = user.get("profile", {})
+            if not request_language:
+                user_language = profile.get("preferredLanguage") or "en"
+            user_name = profile.get("firstName") or user.get("firstName")
+
         # Send the email
         await email_service.send_verification_email(
             to_email=body.email,
             verification_link=verification_link,
+            user_name=user_name,
+            language=user_language,
         )
     except ValueError as e:
         # User not found - don't reveal this

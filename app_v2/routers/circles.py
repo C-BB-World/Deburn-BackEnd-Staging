@@ -296,6 +296,7 @@ async def schedule_meeting(
             member_email = member_doc.get("email")
             profile = member_doc.get("profile", {})
             first_name = profile.get("firstName") or member_doc.get("firstName") or ""
+            member_language = profile.get("preferredLanguage") or "en"
 
             # Send email
             try:
@@ -306,6 +307,7 @@ async def schedule_meeting(
                     meeting_datetime=meeting_datetime,
                     timezone=meeting_timezone,
                     meeting_link=meeting_link,
+                    language=member_language,
                 )
             except Exception as e:
                 logger.warning(f"Failed to send meeting email to {member_email}: {e}")
@@ -839,12 +841,14 @@ async def move_member(
 
     member_name = "Member"
     member_email = None
+    member_language = "en"
     if member_doc:
         profile = member_doc.get("profile", {})
         first_name = profile.get("firstName", "")
         last_name = profile.get("lastName", "")
         member_name = f"{first_name} {last_name}".strip() or member_doc.get("email", "Member")
         member_email = member_doc.get("email")
+        member_language = profile.get("preferredLanguage") or "en"
 
     # Create notification for the moved member
     try:
@@ -868,7 +872,8 @@ async def move_member(
                 user_name=member_name.split()[0] if member_name else None,
                 from_group_name=from_group_name,
                 to_group_name=to_group_name,
-                pool_name=pool_name
+                pool_name=pool_name,
+                language=member_language,
             )
         except Exception as e:
             logger.warning(f"Failed to send move email: {e}")

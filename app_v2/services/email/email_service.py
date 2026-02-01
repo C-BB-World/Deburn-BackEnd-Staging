@@ -2,18 +2,25 @@
 Email service for sending transactional emails.
 
 Supports SMTP, Resend API, and console logging modes.
+Supports i18n via JSON locale files.
 """
 
+import json
 import os
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from pathlib import Path
 from typing import Optional
 
 import httpx
 import aiosmtplib
 
 logger = logging.getLogger(__name__)
+
+# Load locale files
+LOCALES_DIR = Path(__file__).parent / "locales"
+_translations_cache: dict = {}
 
 
 class EmailService:
@@ -88,11 +95,61 @@ class EmailService:
 
         logger.info(f"Email service initialized in {self._mode} mode")
 
+    def _get_translations(
+        self,
+        lang: str,
+        email_type: str,
+        variables: dict
+    ) -> dict:
+        """
+        Load translations from JSON file and replace placeholders.
+
+        Args:
+            lang: Language code ("en" or "sv")
+            email_type: Email type key (e.g., "verification", "meeting_scheduled")
+            variables: Dict of placeholder values to substitute
+
+        Returns:
+            dict with all translated strings for the email type
+        """
+        global _translations_cache
+
+        # Fallback to English if language not supported
+        if lang not in ["en", "sv"]:
+            lang = "en"
+
+        # Load from cache or file
+        if lang not in _translations_cache:
+            locale_file = LOCALES_DIR / f"{lang}.json"
+            try:
+                with open(locale_file, "r", encoding="utf-8") as f:
+                    _translations_cache[lang] = json.load(f)
+            except FileNotFoundError:
+                logger.warning(f"Locale file not found: {locale_file}, falling back to English")
+                lang = "en"
+                locale_file = LOCALES_DIR / "en.json"
+                with open(locale_file, "r", encoding="utf-8") as f:
+                    _translations_cache[lang] = json.load(f)
+
+        # Get translations for this email type
+        translations = _translations_cache.get(lang, {}).get(email_type, {})
+
+        # Replace placeholders in each string
+        result = {}
+        for key, value in translations.items():
+            if isinstance(value, str):
+                for var_name, var_value in variables.items():
+                    value = value.replace(f"{{{{{var_name}}}}}", str(var_value))
+            result[key] = value
+
+        return result
+
     async def send_verification_email(
         self,
         to_email: str,
         verification_link: str,
         user_name: Optional[str] = None,
+        language: str = "en",
     ) -> dict:
         """
         Send email verification email.
@@ -101,12 +158,15 @@ class EmailService:
             to_email: Recipient email address
             verification_link: Firebase verification link
             user_name: User's display name (optional)
+            language: Language code ("en" or "sv")
 
         Returns:
             dict with success status and message
         """
         name = user_name or "there"
-        subject = "Verify your email address"
+
+        # Get translations
+        t = self._get_translations(language, "verification", {"name": name})
 
         html_content = f"""
 <!DOCTYPE html>
@@ -122,15 +182,15 @@ class EmailService:
 </head>
 <body>
     <div class="container">
-        <h1>Verify your email</h1>
-        <p>Hi {name},</p>
-        <p>Thanks for signing up! Please verify your email address by clicking the button below:</p>
-        <a href="{verification_link}" class="button">Verify Email</a>
-        <p>Or copy and paste this link into your browser:</p>
+        <h1>{t.get("header", "Verify your email")}</h1>
+        <p>{t.get("greeting", f"Hi {name},")}</p>
+        <p>{t.get("body", "Thanks for signing up! Please verify your email address by clicking the button below:")}</p>
+        <a href="{verification_link}" class="button">{t.get("button", "Verify Email")}</a>
+        <p>{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #666;">{verification_link}</p>
-        <p>If you didn't create an account, you can safely ignore this email.</p>
+        <p>{t.get("ignore_notice", "If you didn't create an account, you can safely ignore this email.")}</p>
         <div class="footer">
-            <p>Best regards,<br>{self._team_name}</p>
+            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -138,23 +198,23 @@ class EmailService:
 """
 
         text_content = f"""
-Verify your email
+{t.get("header", "Verify your email")}
 
-Hi {name},
+{t.get("greeting", f"Hi {name},")}
 
-Thanks for signing up! Please verify your email address by clicking the link below:
+{t.get("body", "Thanks for signing up! Please verify your email address by clicking the link below:")}
 
 {verification_link}
 
-If you didn't create an account, you can safely ignore this email.
+{t.get("ignore_notice", "If you didn't create an account, you can safely ignore this email.")}
 
-Best regards,
+{t.get("sign_off", "Best regards,")}
 {self._team_name}
 """
 
         return await self._send(
             to=to_email,
-            subject=subject,
+            subject=t.get("subject", "Verify your email address"),
             html=html_content,
             text=text_content,
         )
@@ -168,6 +228,7 @@ Best regards,
         custom_message: Optional[str] = None,
         first_name: Optional[str] = None,
         expires_at: Optional[str] = None,
+        language: str = "en",
     ) -> dict:
         """
         Send circle invitation email.
@@ -180,12 +241,19 @@ Best regards,
             custom_message: Custom message from inviter (optional)
             first_name: Invitee's first name (optional)
             expires_at: Expiration date string (optional)
+            language: Language code ("en" or "sv")
 
         Returns:
             dict with success status and message
         """
         name = first_name or "there"
-        subject = f"You're invited to join {pool_name}"
+
+        # Get translations
+        t = self._get_translations(language, "circle_invitation", {
+            "name": name,
+            "pool_name": pool_name,
+            "expires_at": expires_at or ""
+        })
 
         accept_link = f"{self._app_url}/circles/invite?token={token}"
         decline_link = f"{self._app_url}/circles/invite?token={token}&action=decline"
@@ -194,8 +262,9 @@ Best regards,
         topic_html = ""
         topic_text = ""
         if topic:
-            topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>Topic:</strong> {topic}</p>'
-            topic_text = f"\nTopic: {topic}"
+            topic_label = t.get("topic_label", "Topic:")
+            topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>{topic_label}</strong> {topic}</p>'
+            topic_text = f"\n{topic_label} {topic}"
 
         # Build custom message section
         message_html = ""
@@ -208,8 +277,9 @@ Best regards,
         expiry_html = ""
         expiry_text = ""
         if expires_at:
-            expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">This invitation expires on {expires_at}.</p>'
-            expiry_text = f"\n\nThis invitation expires on {expires_at}."
+            expiry_notice = t.get("expiry_notice", f"This invitation expires on {expires_at}.")
+            expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">{expiry_notice}</p>'
+            expiry_text = f"\n\n{expiry_notice}"
 
         html_content = f"""
 <!DOCTYPE html>
@@ -229,22 +299,22 @@ Best regards,
 </head>
 <body>
     <div class="header">
-        <h1>You're Invited!</h1>
+        <h1>{t.get("header", "You're Invited!")}</h1>
     </div>
     <div class="container">
-        <p>Hi {name},</p>
-        <p>You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.</p>
+        <p>{t.get("greeting", f"Hi {name},")}</p>
+        <p>{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
         {topic_html}
         {message_html}
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{accept_link}" class="button button-primary">Accept Invitation</a>
-            <a href="{decline_link}" class="button button-secondary">Decline</a>
+            <a href="{accept_link}" class="button button-primary">{t.get("accept_button", "Accept Invitation")}</a>
+            <a href="{decline_link}" class="button button-secondary">{t.get("decline_button", "Decline")}</a>
         </div>
-        <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #667eea; font-size: 14px;">{accept_link}</p>
         {expiry_html}
         <div class="footer">
-            <p>Best regards,<br>{self._team_name}</p>
+            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -252,26 +322,26 @@ Best regards,
 """
 
         text_content = f"""
-You're Invited to {pool_name}!
+{t.get("header", "You're Invited!")}
 
-Hi {name},
+{t.get("greeting", f"Hi {name},")}
 
-You've been invited to join {pool_name}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.
+{t.get("body", f"You've been invited to join {pool_name}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}
 {topic_text}
 {message_text}
 
-Accept the invitation: {accept_link}
+{t.get("accept_button", "Accept Invitation")}: {accept_link}
 
-Decline the invitation: {decline_link}
+{t.get("decline_button", "Decline")}: {decline_link}
 {expiry_text}
 
-Best regards,
+{t.get("sign_off", "Best regards,")}
 {self._team_name}
 """
 
         return await self._send(
             to=to_email,
-            subject=subject,
+            subject=t.get("subject", f"You're invited to join {pool_name}"),
             html=html_content,
             text=text_content,
         )
@@ -283,6 +353,7 @@ Best regards,
         from_group_name: str = "",
         to_group_name: str = "",
         pool_name: str = "",
+        language: str = "en",
     ) -> dict:
         """
         Send notification email when a member is moved between groups.
@@ -293,12 +364,19 @@ Best regards,
             from_group_name: Name of the source group
             to_group_name: Name of the target group
             pool_name: Name of the pool
+            language: Language code ("en" or "sv")
 
         Returns:
             dict with success status and message
         """
         name = user_name or "there"
-        subject = f"You've been moved to {to_group_name}"
+
+        # Get translations
+        t = self._get_translations(language, "member_moved", {
+            "name": name,
+            "to_group": to_group_name,
+            "pool_name": pool_name
+        })
 
         circles_link = f"{self._app_url}/circles"
 
@@ -322,31 +400,31 @@ Best regards,
 </head>
 <body>
     <div class="header">
-        <h1>Group Change Notice</h1>
+        <h1>{t.get("header", "Group Change Notice")}</h1>
     </div>
     <div class="container">
-        <p>Hi {name},</p>
-        <p>You've been moved to a new group in <strong>{pool_name}</strong>.</p>
+        <p>{t.get("greeting", f"Hi {name},")}</p>
+        <p>{t.get("body", f"You've been moved to a new group in <strong>{pool_name}</strong>.")}</p>
 
         <div class="info-box">
             <div class="info-row">
-                <span class="info-label">Previous Group:</span>
+                <span class="info-label">{t.get("previous_label", "Previous Group:")}</span>
                 <span class="info-value">{from_group_name}</span>
             </div>
             <div class="info-row">
-                <span class="info-label">New Group:</span>
+                <span class="info-label">{t.get("new_label", "New Group:")}</span>
                 <span class="info-value">{to_group_name}</span>
             </div>
         </div>
 
-        <p>Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.</p>
+        <p>{t.get("info", "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.")}</p>
 
         <div style="text-align: center;">
-            <a href="{circles_link}" class="button">View Your Circles</a>
+            <a href="{circles_link}" class="button">{t.get("button", "View Your Circles")}</a>
         </div>
 
         <div class="footer">
-            <p>Best regards,<br>{self._team_name}</p>
+            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -354,26 +432,26 @@ Best regards,
 """
 
         text_content = f"""
-Group Change Notice
+{t.get("header", "Group Change Notice")}
 
-Hi {name},
+{t.get("greeting", f"Hi {name},")}
 
-You've been moved to a new group in {pool_name}.
+{t.get("body", f"You've been moved to a new group in {pool_name}.")}
 
-Previous Group: {from_group_name}
-New Group: {to_group_name}
+{t.get("previous_label", "Previous Group:")} {from_group_name}
+{t.get("new_label", "New Group:")} {to_group_name}
 
-Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.
+{t.get("info", "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.")}
 
-View Your Circles: {circles_link}
+{t.get("button", "View Your Circles")}: {circles_link}
 
-Best regards,
+{t.get("sign_off", "Best regards,")}
 {self._team_name}
 """
 
         return await self._send(
             to=to_email,
-            subject=subject,
+            subject=t.get("subject", f"You've been moved to {to_group_name}"),
             html=html_content,
             text=text_content,
         )
@@ -386,6 +464,7 @@ Best regards,
         meeting_datetime: str = "",
         timezone: str = "UTC",
         meeting_link: str = "",
+        language: str = "en",
     ) -> dict:
         """
         Send meeting scheduled notification email.
@@ -397,12 +476,18 @@ Best regards,
             meeting_datetime: Formatted date and time string
             timezone: Timezone string
             meeting_link: URL to join the meeting
+            language: Language code ("en" or "sv")
 
         Returns:
             dict with success status and message
         """
         name = user_name or "there"
-        subject = f"Human First AI Meeting Scheduled: {discussion_title}"
+
+        # Get translations
+        t = self._get_translations(language, "meeting_scheduled", {
+            "name": name,
+            "title": discussion_title
+        })
 
         html_content = f"""
 <!DOCTYPE html>
@@ -424,31 +509,31 @@ Best regards,
 </head>
 <body>
     <div class="header">
-        <h1>Meeting Scheduled</h1>
+        <h1>{t.get("header", "Meeting Scheduled")}</h1>
     </div>
     <div class="container">
-        <p>Hi {name},</p>
-        <p>A new Think Tank meeting has been scheduled for your group.</p>
+        <p>{t.get("greeting", f"Hi {name},")}</p>
+        <p>{t.get("body", "A new Think Tank meeting has been scheduled for your group.")}</p>
 
         <div class="info-box">
             <div class="info-row">
-                <div class="info-label">Discussion Topic</div>
+                <div class="info-label">{t.get("topic_label", "Discussion Topic")}</div>
                 <div class="info-value">{discussion_title}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">When</div>
+                <div class="info-label">{t.get("when_label", "When")}</div>
                 <div class="info-value">{meeting_datetime} ({timezone})</div>
             </div>
         </div>
 
         <div style="text-align: center;">
-            <a href="{meeting_link}" class="button">Join Meeting</a>
+            <a href="{meeting_link}" class="button">{t.get("button", "Join Meeting")}</a>
         </div>
 
-        <p>We look forward to seeing you there.</p>
+        <p>{t.get("closing", "We look forward to seeing you there.")}</p>
 
         <div class="footer">
-            <p>Best,<br>{self._team_name}</p>
+            <p>{t.get("sign_off", "Best,")}<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -456,27 +541,27 @@ Best regards,
 """
 
         text_content = f"""
-Human First AI Meeting Scheduled: {discussion_title}
+{t.get("subject", f"Human First AI Meeting Scheduled: {discussion_title}")}
 
-Hi {name},
+{t.get("greeting", f"Hi {name},")}
 
-A new Think Tank meeting has been scheduled for your group.
+{t.get("body", "A new Think Tank meeting has been scheduled for your group.")}
 
-Discussion Topic: {discussion_title}
+{t.get("topic_label", "Discussion Topic")}: {discussion_title}
 
-When: {meeting_datetime} ({timezone})
+{t.get("when_label", "When")}: {meeting_datetime} ({timezone})
 
-Join Meeting: {meeting_link}
+{t.get("button", "Join Meeting")}: {meeting_link}
 
-We look forward to seeing you there.
+{t.get("closing", "We look forward to seeing you there.")}
 
-Best,
+{t.get("sign_off", "Best,")}
 {self._team_name}
 """
 
         return await self._send(
             to=to_email,
-            subject=subject,
+            subject=t.get("subject", f"Human First AI Meeting Scheduled: {discussion_title}"),
             html=html_content,
             text=text_content,
         )
@@ -486,6 +571,7 @@ Best,
         to_email: str,
         reset_link: str,
         user_name: Optional[str] = None,
+        language: str = "en",
     ) -> dict:
         """
         Send password reset email.
@@ -494,12 +580,15 @@ Best,
             to_email: Recipient email address
             reset_link: Firebase password reset link
             user_name: User's display name (optional)
+            language: Language code ("en" or "sv")
 
         Returns:
             dict with success status and message
         """
         name = user_name or "there"
-        subject = "Reset your password"
+
+        # Get translations
+        t = self._get_translations(language, "password_reset", {"name": name})
 
         html_content = f"""
 <!DOCTYPE html>
@@ -515,15 +604,15 @@ Best,
 </head>
 <body>
     <div class="container">
-        <h1>Reset your password</h1>
-        <p>Hi {name},</p>
-        <p>We received a request to reset your password. Click the button below to create a new password:</p>
-        <a href="{reset_link}" class="button">Reset Password</a>
-        <p>Or copy and paste this link into your browser:</p>
+        <h1>{t.get("header", "Reset your password")}</h1>
+        <p>{t.get("greeting", f"Hi {name},")}</p>
+        <p>{t.get("body", "We received a request to reset your password. Click the button below to create a new password:")}</p>
+        <a href="{reset_link}" class="button">{t.get("button", "Reset Password")}</a>
+        <p>{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #666;">{reset_link}</p>
-        <p>If you didn't request a password reset, you can safely ignore this email.</p>
+        <p>{t.get("ignore_notice", "If you didn't request a password reset, you can safely ignore this email.")}</p>
         <div class="footer">
-            <p>Best regards,<br>{self._team_name}</p>
+            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
         </div>
     </div>
 </body>
@@ -531,23 +620,23 @@ Best,
 """
 
         text_content = f"""
-Reset your password
+{t.get("header", "Reset your password")}
 
-Hi {name},
+{t.get("greeting", f"Hi {name},")}
 
-We received a request to reset your password. Click the link below to create a new password:
+{t.get("body", "We received a request to reset your password. Click the link below to create a new password:")}
 
 {reset_link}
 
-If you didn't request a password reset, you can safely ignore this email.
+{t.get("ignore_notice", "If you didn't request a password reset, you can safely ignore this email.")}
 
-Best regards,
+{t.get("sign_off", "Best regards,")}
 {self._team_name}
 """
 
         return await self._send(
             to=to_email,
-            subject=subject,
+            subject=t.get("subject", "Reset your password"),
             html=html_content,
             text=text_content,
         )

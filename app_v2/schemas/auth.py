@@ -37,11 +37,13 @@ class RegisterRequest(BaseModel):
     organization: str
     country: str  # ISO 3166-1 alpha-2
     consents: ConsentsInput
+    language: Optional[str] = "en"  # For verification email language
 
 
 class ForgotPasswordRequest(BaseModel):
     """POST /api/auth/forgot-password"""
     email: EmailStr
+    language: Optional[str] = "en"  # For reset email language
 
 
 class ResetPasswordRequest(BaseModel):
@@ -58,6 +60,7 @@ class VerifyEmailRequest(BaseModel):
 class ResendVerificationRequest(BaseModel):
     """POST /api/auth/resend-verification"""
     email: EmailStr
+    language: Optional[str] = "en"  # For verification email language
 
 
 class DeleteAccountRequest(BaseModel):

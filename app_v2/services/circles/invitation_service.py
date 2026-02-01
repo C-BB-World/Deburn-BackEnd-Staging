@@ -115,6 +115,13 @@ class InvitationService:
 
             # Send invitation email (non-blocking - invitation saved even if email fails)
             try:
+                # Check if user already exists to get their language preference
+                existing_user = await self._db["users"].find_one({"email": email})
+                invitee_language = "en"
+                if existing_user:
+                    profile = existing_user.get("profile", {})
+                    invitee_language = profile.get("preferredLanguage") or "en"
+
                 email_service = EmailService()
                 await email_service.send_circle_invitation_email(
                     to_email=email,
@@ -124,6 +131,7 @@ class InvitationService:
                     custom_message=pool.get("invitationSettings", {}).get("customMessage"),
                     first_name=invitee.get("firstName"),
                     expires_at=expires_at.strftime("%B %d, %Y"),
+                    language=invitee_language,
                 )
             except Exception as email_error:
                 logger.warning(f"Failed to send invitation email to {email}: {email_error}")

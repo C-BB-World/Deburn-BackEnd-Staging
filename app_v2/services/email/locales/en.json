@@ -1,0 +1,56 @@
+{
+  "meeting_scheduled": {
+    "subject": "Human First AI Meeting Scheduled: {{title}}",
+    "header": "Meeting Scheduled",
+    "greeting": "Hi {{name}},",
+    "body": "A new Think Tank meeting has been scheduled for your group.",
+    "topic_label": "Discussion Topic",
+    "when_label": "When",
+    "button": "Join Meeting",
+    "closing": "We look forward to seeing you there.",
+    "sign_off": "Best,"
+  },
+  "verification": {
+    "subject": "Verify your email address",
+    "header": "Verify your email",
+    "greeting": "Hi {{name}},",
+    "body": "Thanks for signing up! Please verify your email address by clicking the button below:",
+    "button": "Verify Email",
+    "link_fallback": "Or copy and paste this link into your browser:",
+    "ignore_notice": "If you didn't create an account, you can safely ignore this email.",
+    "sign_off": "Best regards,"
+  },
+  "circle_invitation": {
+    "subject": "You're invited to join {{pool_name}}",
+    "header": "You're Invited!",
+    "greeting": "Hi {{name}},",
+    "body": "You've been invited to join {{pool_name}}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.",
+    "topic_label": "Topic:",
+    "accept_button": "Accept Invitation",
+    "decline_button": "Decline",
+    "link_fallback": "Or copy and paste this link into your browser:",
+    "expiry_notice": "This invitation expires on {{expires_at}}.",
+    "sign_off": "Best regards,"
+  },
+  "member_moved": {
+    "subject": "You've been moved to {{to_group}}",
+    "header": "Group Change Notice",
+    "greeting": "Hi {{name}},",
+    "body": "You've been moved to a new group in {{pool_name}}.",
+    "previous_label": "Previous Group:",
+    "new_label": "New Group:",
+    "info": "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.",
+    "button": "View Your Circles",
+    "sign_off": "Best regards,"
+  },
+  "password_reset": {
+    "subject": "Reset your password",
+    "header": "Reset your password",
+    "greeting": "Hi {{name}},",
+    "body": "We received a request to reset your password. Click the button below to create a new password:",
+    "button": "Reset Password",
+    "link_fallback": "Or copy and paste this link into your browser:",
+    "ignore_notice": "If you didn't request a password reset, you can safely ignore this email.",
+    "sign_off": "Best regards,"
+  }
+}
