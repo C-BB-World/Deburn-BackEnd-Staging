@@ -398,6 +398,74 @@ class GroupService:
         logger.info(f"Created empty group '{name}' in pool {pool_id}")
         return group_doc
 
+    async def add_member(
+        self,
+        group_id: str,
+        user_id: str,
+        admin_id: str
+    ) -> Dict[str, Any]:
+        """
+        Add a latecomer to an existing group (admin only).
+
+        Args:
+            group_id: Target group ID
+            user_id: User to add
+            admin_id: Admin performing the action
+
+        Returns:
+            Updated group document
+        """
+        group = await self.get_group(group_id)
+
+        pool = await self._pools_collection.find_one({"_id": group["poolId"]})
+        if not pool:
+            raise NotFoundException(message="Pool not found", code="POOL_NOT_FOUND")
+
+        if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
+            raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
+
+        if len(group.get("members", [])) >= self.MAX_GROUP_SIZE:
+            raise ValidationException(
+                message="Group is full",
+                code="GROUP_FULL"
+            )
+
+        # Check if user is already in this group
+        member_ids = [m.get("userId") for m in group.get("members", []) if isinstance(m, dict)]
+        if ObjectId(user_id) in member_ids:
+            raise ValidationException(
+                message="User is already a member of this group",
+                code="ALREADY_MEMBER"
+            )
+
+        # Get user info
+        user = await self._users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise NotFoundException(message="User not found", code="USER_NOT_FOUND")
+
+        profile = user.get("profile", {})
+        first_name = profile.get("firstName", "")
+        last_name = profile.get("lastName", "")
+        name = f"{first_name} {last_name}".strip() or user.get("email", "Member")
+
+        member_obj = {
+            "userId": ObjectId(user_id),
+            "name": name
+        }
+
+        now = datetime.now(timezone.utc)
+
+        await self._groups_collection.update_one(
+            {"_id": ObjectId(group_id)},
+            {
+                "$push": {"members": member_obj},
+                "$set": {"updatedAt": now}
+            }
+        )
+
+        logger.info(f"Added member {user_id} to group {group_id}")
+        return await self.get_group(group_id)
+
     async def _is_org_admin(self, organization_id: str, user_id: str) -> bool:
         """Check if user is admin of organization."""
         member = await self._org_members_collection.find_one({

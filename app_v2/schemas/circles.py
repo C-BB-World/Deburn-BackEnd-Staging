@@ -82,5 +82,9 @@ class MoveMemberRequest(BaseModel):
     toGroupId: str
 
 
+class AddMemberRequest(BaseModel):
+    userId: str
+
+
 class CreateGroupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)

@@ -31,6 +31,7 @@ from app_v2.schemas.circles import (
     SendInvitationsRequest,
     CreatePoolRequest,
     MoveMemberRequest,
+    AddMemberRequest,
     CreateGroupRequest,
 )
 from app_v2.services.email.email_service import EmailService
@@ -698,6 +699,7 @@ async def get_pool_invitations(
             "firstName": inv.get("firstName"),
             "lastName": inv.get("lastName"),
             "status": inv.get("status", "pending"),
+            "userId": str(inv["userId"]) if inv.get("userId") else None,
             "createdAt": created_at_str,
             "expiresAt": expires_at_str,
         })
@@ -980,6 +982,63 @@ async def move_member(
         },
         "movedMember": {
             "id": body.memberId,
+            "name": member_name
+        }
+    })
+
+
+@router.post("/pools/{pool_id}/groups/{group_id}/add-member")
+async def add_member_to_group(
+    pool_id: str,
+    group_id: str,
+    body: AddMemberRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Add a latecomer to an existing group.
+
+    Only organization admins can add members.
+    The user must have an accepted invitation for this pool.
+    """
+    group_service = get_group_service()
+    pool_service = get_pool_service()
+    db = get_main_db()
+
+    user_id = str(user["_id"])
+
+    # Verify admin and get pool info
+    pool = await pool_service.get_pool(pool_id)
+
+    # Add member to group
+    await group_service.add_member(
+        group_id=group_id,
+        user_id=body.userId,
+        admin_id=user_id
+    )
+
+    # Get updated group
+    updated_group = await group_service.get_group(group_id)
+
+    # Get member info
+    users_collection = db["users"]
+    member_doc = await users_collection.find_one({"_id": ObjectId(body.userId)})
+
+    member_name = "Member"
+    if member_doc:
+        profile = member_doc.get("profile", {})
+        first_name = profile.get("firstName", "")
+        last_name = profile.get("lastName", "")
+        member_name = f"{first_name} {last_name}".strip() or member_doc.get("email", "Member")
+
+    return success_response({
+        "message": "Member added successfully",
+        "group": {
+            "id": group_id,
+            "name": updated_group.get("name", ""),
+            "memberCount": len(updated_group.get("members", []))
+        },
+        "addedMember": {
+            "id": body.userId,
             "name": member_name
         }
     })
