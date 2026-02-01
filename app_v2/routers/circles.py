@@ -265,7 +265,8 @@ async def schedule_meeting(
         scheduled_at=body.scheduledAt,
         duration=body.duration,
         meeting_link=body.meetingLink,
-        meeting_timezone=body.timezone or "UTC"
+        meeting_timezone=body.timezone or "UTC",
+        available_members=body.availableMembers
     )
 
     # Pipeline Step 2: Send emails to all group members

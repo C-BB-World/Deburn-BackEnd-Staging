@@ -25,6 +25,7 @@ class ScheduleMeetingRequest(BaseModel):
     location: Optional[str] = None
     meetingLink: Optional[str] = None
     timezone: Optional[str] = None
+    availableMembers: Optional[List[str]] = None  # Names of members who can attend
 
 
 class UpdateAttendanceRequest(BaseModel):

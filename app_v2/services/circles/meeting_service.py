@@ -55,7 +55,8 @@ class MeetingService:
         duration: int = 60,
         meeting_link: Optional[str] = None,
         meeting_timezone: str = "Europe/Stockholm",
-        create_calendar_events: bool = True
+        create_calendar_events: bool = True,
+        available_members: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Schedule a meeting for a group.
@@ -71,6 +72,7 @@ class MeetingService:
             meeting_link: Video call link (Zoom, Meet, etc.)
             meeting_timezone: Timezone for the meeting
             create_calendar_events: Whether to create calendar events
+            available_members: List of member names who are available for this slot
 
         Returns:
             Created CircleMeeting with meetingLink
@@ -114,14 +116,27 @@ class MeetingService:
         if not title:
             title = f"{group['name']} Meeting"
 
-        attendance = [
-            {
-                "userId": m.get("userId") if isinstance(m, dict) else m,
-                "status": "pending",
-                "respondedAt": None
-            }
-            for m in group["members"]
-        ]
+        # Build attendance list with status based on availability
+        available_names_set = set(available_members) if available_members else None
+        attendance = []
+
+        for m in group["members"]:
+            user_id = m.get("userId") if isinstance(m, dict) else m
+
+            # Determine status: if we have available_members list, check if user is in it
+            if available_names_set is not None:
+                # Look up user name to check availability
+                user_doc = await self._db["users"].find_one({"_id": user_id})
+                user_name = f"{user_doc.get('firstName', '')} {user_doc.get('lastName', '')}".strip() if user_doc else ""
+                status = "pending" if user_name in available_names_set else "declined"
+            else:
+                status = "pending"
+
+            attendance.append({
+                "userId": user_id,
+                "status": status,
+                "respondedAt": now if status == "declined" else None
+            })
 
         meeting_doc = {
             "groupId": ObjectId(group_id),
