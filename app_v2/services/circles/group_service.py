@@ -398,6 +398,61 @@ class GroupService:
         logger.info(f"Created empty group '{name}' in pool {pool_id}")
         return group_doc
 
+    async def remove_member(
+        self,
+        group_id: str,
+        user_id: str,
+        admin_id: str
+    ) -> Dict[str, Any]:
+        """
+        Remove a member from a group (admin only).
+
+        Args:
+            group_id: Group ID
+            user_id: User to remove
+            admin_id: Admin performing the action
+
+        Returns:
+            Updated group document
+        """
+        group = await self.get_group(group_id)
+
+        pool = await self._pools_collection.find_one({"_id": group["poolId"]})
+        if not pool:
+            raise NotFoundException(message="Pool not found", code="POOL_NOT_FOUND")
+
+        if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
+            raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
+
+        # Check if user is in the group
+        member_ids = [m.get("userId") for m in group.get("members", []) if isinstance(m, dict)]
+        if ObjectId(user_id) not in member_ids:
+            raise ValidationException(
+                message="User is not a member of this group",
+                code="NOT_GROUP_MEMBER"
+            )
+
+        now = datetime.now(timezone.utc)
+
+        # Remove from group
+        await self._groups_collection.update_one(
+            {"_id": ObjectId(group_id)},
+            {
+                "$pull": {"members": {"userId": ObjectId(user_id)}},
+                "$set": {"updatedAt": now}
+            }
+        )
+
+        # Delete their invitation for this pool
+        delete_result = await self._invitations_collection.delete_one({
+            "poolId": ObjectId(str(group["poolId"])),
+            "userId": ObjectId(user_id)
+        })
+        logger.info(f"Deleted {delete_result.deleted_count} invitation(s) for user {user_id} in pool {group['poolId']}")
+
+        logger.info(f"Removed member {user_id} from group {group_id} and pool {pool['_id']}")
+        return await self.get_group(group_id)
+
     async def add_member(
         self,
         group_id: str,

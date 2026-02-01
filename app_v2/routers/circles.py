@@ -1044,6 +1044,56 @@ async def add_member_to_group(
     })
 
 
+@router.post("/pools/{pool_id}/groups/{group_id}/remove-member")
+async def remove_member_from_group(
+    pool_id: str,
+    group_id: str,
+    body: AddMemberRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Remove a member from a group and the pool entirely.
+
+    Only organization admins can remove members.
+    This deletes the user's invitation, as if they were never invited.
+    """
+    group_service = get_group_service()
+    db = get_main_db()
+
+    user_id = str(user["_id"])
+
+    # Get member info before removal
+    users_collection = db["users"]
+    member_doc = await users_collection.find_one({"_id": ObjectId(body.userId)})
+
+    member_name = "Member"
+    if member_doc:
+        profile = member_doc.get("profile", {})
+        first_name = profile.get("firstName", "")
+        last_name = profile.get("lastName", "")
+        member_name = f"{first_name} {last_name}".strip() or member_doc.get("email", "Member")
+
+    # Remove member from group and delete invitation
+    updated_group = await group_service.remove_member(
+        group_id=group_id,
+        user_id=body.userId,
+        admin_id=user_id
+    )
+
+    return success_response({
+        "message": "Member removed successfully",
+        "group": {
+            "id": group_id,
+            "name": updated_group.get("name", ""),
+            "memberCount": len(updated_group.get("members", []))
+        },
+        "removedMember": {
+            "id": body.userId,
+            "name": member_name
+        }
+    })
+
+
 @router.post("/pools/{pool_id}/groups/{group_id}/delete")
 async def delete_group(
     pool_id: str,
