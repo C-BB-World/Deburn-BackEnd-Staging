@@ -192,7 +192,7 @@ class EmailService:
         <p>{t.get("greeting", f"Hi {name},")}</p>
         <p>{t.get("body", "Thanks for signing up! Please verify your email address by clicking the button below:")}</p>
         <div style="text-align: center;">
-            <a href="{verification_link}" class="button">{t.get("button", "Verify Email")}</a>
+            <a href="{verification_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Verify Email")}</a>
         </div>
         <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{verification_link}</p>
@@ -315,8 +315,8 @@ class EmailService:
         {topic_html}
         {message_html}
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{accept_link}" class="button button-primary">{t.get("accept_button", "Accept Invitation")}</a>
-            <a href="{decline_link}" class="button button-secondary">{t.get("decline_button", "Decline")}</a>
+            <a href="{accept_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #2D4A47; color: #ffffff !important;">{t.get("accept_button", "Accept Invitation")}</a>
+            <a href="{decline_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #e5e7eb; color: #374151;">{t.get("decline_button", "Decline")}</a>
         </div>
         <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{accept_link}</p>
@@ -428,7 +428,7 @@ class EmailService:
         <p>{t.get("info", "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.")}</p>
 
         <div style="text-align: center;">
-            <a href="{circles_link}" class="button">{t.get("button", "View Your Circles")}</a>
+            <a href="{circles_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "View Your Circles")}</a>
         </div>
 
         <div class="footer">
@@ -535,7 +535,7 @@ class EmailService:
         </div>
 
         <div style="text-align: center;">
-            <a href="{meeting_link}" class="button">{t.get("button", "Join Meeting")}</a>
+            <a href="{meeting_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Join Meeting")}</a>
         </div>
 
         <p>{t.get("closing", "We look forward to seeing you there.")}</p>
@@ -620,7 +620,7 @@ class EmailService:
         <p>{t.get("greeting", f"Hi {name},")}</p>
         <p>{t.get("body", "We received a request to reset your password. Click the button below to create a new password:")}</p>
         <div style="text-align: center;">
-            <a href="{reset_link}" class="button">{t.get("button", "Reset Password")}</a>
+            <a href="{reset_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Reset Password")}</a>
         </div>
         <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
         <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{reset_link}</p>

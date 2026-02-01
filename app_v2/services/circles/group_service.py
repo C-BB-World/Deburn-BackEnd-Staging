@@ -435,30 +435,19 @@ class GroupService:
         now = datetime.now(timezone.utc)
 
         # Remove from group
-        print(f"[REMOVE] Attempting to remove user {user_id} from group {group_id}")
-        print(f"[REMOVE] Current members in group: {group.get('members', [])}")
-        print(f"[REMOVE] Looking for userId: {ObjectId(user_id)} (type: {type(ObjectId(user_id))})")
-
-        update_result = await self._groups_collection.update_one(
+        await self._groups_collection.update_one(
             {"_id": ObjectId(group_id)},
             {
                 "$pull": {"members": {"userId": ObjectId(user_id)}},
                 "$set": {"updatedAt": now}
             }
         )
-        print(f"[REMOVE] Group update: matched={update_result.matched_count}, modified={update_result.modified_count}")
-
-        # Verify removal
-        updated_group = await self._groups_collection.find_one({"_id": ObjectId(group_id)})
-        print(f"[REMOVE] Members after removal: {updated_group.get('members', [])}")
 
         # Delete their invitation for this pool
-        print(f"[REMOVE] Attempting to delete invitation for user {user_id} in pool {group['poolId']}")
-        delete_result = await self._invitations_collection.delete_one({
+        await self._invitations_collection.delete_one({
             "poolId": ObjectId(str(group["poolId"])),
             "userId": ObjectId(user_id)
         })
-        print(f"[REMOVE] Deleted {delete_result.deleted_count} invitation(s)")
 
         logger.info(f"Removed member {user_id} from group {group_id} and pool {pool['_id']}")
         return await self.get_group(group_id)
