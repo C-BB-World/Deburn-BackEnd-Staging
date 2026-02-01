@@ -4,11 +4,12 @@ FastAPI router for Circles system endpoints.
 Provides endpoints for groups, meetings, invitations, and availability.
 """
 
+import os
 import logging
 from typing import Annotated, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 
 from app_v2.dependencies import (
     require_auth,
@@ -17,7 +18,10 @@ from app_v2.dependencies import (
     get_meeting_service,
     get_invitation_service,
     get_availability_service,
+    get_main_db,
+    get_notification_service,
 )
+from app_v2.pipelines.availability import get_group_availability_for_scheduling
 from app_v2.schemas.circles import (
     UpdateAvailabilityRequest,
     ScheduleMeetingRequest,
@@ -27,6 +31,7 @@ from app_v2.schemas.circles import (
     MoveMemberRequest,
     CreateGroupRequest,
 )
+from app_v2.services.email.email_service import EmailService
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
@@ -219,8 +224,6 @@ async def get_common_availability(
     Returns all slots where at least one member is available,
     with counts and names of who can attend each slot.
     """
-    from app_v2.pipelines.availability import get_group_availability_for_scheduling
-
     result = await get_group_availability_for_scheduling(group_id)
 
     return success_response(result)
@@ -234,7 +237,10 @@ async def schedule_meeting(
 ):
     """Schedule a new meeting for the group."""
     meeting_service = get_meeting_service()
+    group_service = get_group_service()
+    db = get_main_db()
 
+    # Pipeline Step 1: Book the meeting
     meeting = await meeting_service.schedule_meeting(
         group_id=group_id,
         scheduled_by=str(user["_id"]),
@@ -246,6 +252,66 @@ async def schedule_meeting(
         meeting_link=body.meetingLink,
         meeting_timezone=body.timezone or "UTC"
     )
+
+    # Pipeline Step 2: Send emails to all group members
+    try:
+        group = await group_service.get_group(group_id)
+        members = group.get("members", [])
+        users_collection = db["users"]
+        email_service = EmailService()
+
+        # Format meeting datetime for email
+        scheduled_at = meeting.get("scheduledAt")
+        if scheduled_at:
+            meeting_datetime = scheduled_at.strftime("%A, %B %d, %Y at %I:%M %p")
+        else:
+            meeting_datetime = "TBD"
+
+        meeting_timezone = body.timezone or "UTC"
+        meeting_link = body.meetingLink or ""
+        discussion_title = body.title or "Think Tank Discussion"
+
+        for member in members:
+            # Handle both dict format and plain ObjectId
+            if isinstance(member, dict):
+                member_id = member.get("userId")
+            else:
+                member_id = member
+
+            if not member_id:
+                continue
+
+            # Ensure ObjectId
+            if not isinstance(member_id, ObjectId):
+                try:
+                    member_id = ObjectId(str(member_id))
+                except Exception:
+                    continue
+
+            # Get member details
+            member_doc = await users_collection.find_one({"_id": member_id})
+            if not member_doc or not member_doc.get("email"):
+                continue
+
+            member_email = member_doc.get("email")
+            profile = member_doc.get("profile", {})
+            first_name = profile.get("firstName") or member_doc.get("firstName") or ""
+
+            # Send email
+            try:
+                await email_service.send_meeting_scheduled_email(
+                    to_email=member_email,
+                    user_name=first_name if first_name else None,
+                    discussion_title=discussion_title,
+                    meeting_datetime=meeting_datetime,
+                    timezone=meeting_timezone,
+                    meeting_link=meeting_link,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send meeting email to {member_email}: {e}")
+
+    except Exception as e:
+        logger.warning(f"Failed to send meeting emails: {e}")
 
     return success_response({
         "id": str(meeting["_id"]),
@@ -265,7 +331,7 @@ async def get_invitation(
     invitation = await invitation_service.get_invitation_by_token(token)
 
     if not invitation:
-        from fastapi import HTTPException
+        
         raise HTTPException(status_code=404, detail={"message": "Invitation not found or expired"})
 
     return success_response({
@@ -392,10 +458,6 @@ async def get_pools(
 
     Returns pools where the user is an organization admin.
     """
-    import os
-    from bson import ObjectId
-    from app_v2.dependencies import get_main_db
-
     db = get_main_db()
     user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
 
@@ -451,8 +513,6 @@ async def get_pool(
     user: Annotated[dict, Depends(require_auth)],
 ):
     """Get pool details by ID."""
-    import os
-
     pool_service = get_pool_service()
 
     pool = await pool_service.get_pool(pool_id)
@@ -573,9 +633,6 @@ async def cancel_invitation(
     pool = await pool_service.get_pool(str(invitation["poolId"]))
 
     # Verify user is org admin
-    from bson import ObjectId
-    from app_v2.dependencies import get_main_db
-
     db = get_main_db()
     user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
     org_members = db["organizationmembers"]
@@ -586,7 +643,6 @@ async def cancel_invitation(
     })
 
     if not is_admin:
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail={"message": "Not authorized"})
 
     await invitation_service.cancel_invitation(invitation_id)
@@ -634,8 +690,6 @@ async def get_pool_groups(
     user: Annotated[dict, Depends(require_auth)],
 ):
     """Get all groups for a pool."""
-    from app_v2.dependencies import get_main_db
-
     group_service = get_group_service()
     db = get_main_db()
 
@@ -749,9 +803,6 @@ async def move_member(
         - 403: Not authorized (not org admin)
         - 404: Group or member not found
     """
-    from bson import ObjectId
-    from app_v2.dependencies import get_main_db, get_notification_service
-
     group_service = get_group_service()
     pool_service = get_pool_service()
     notification_service = get_notification_service()
@@ -811,7 +862,6 @@ async def move_member(
     # Send email notification
     if member_email:
         try:
-            from app_v2.services.email.email_service import EmailService
             email_service = EmailService()
             await email_service.send_member_moved_email(
                 to_email=member_email,
@@ -859,9 +909,6 @@ async def delete_group(
         - 403: Not authorized (not org admin)
         - 404: Group or pool not found
     """
-    from bson import ObjectId
-    from app_v2.dependencies import get_main_db
-
     group_service = get_group_service()
     pool_service = get_pool_service()
     db = get_main_db()

@@ -4,12 +4,12 @@ FastAPI router for Hub system endpoints.
 Provides endpoints for platform administration.
 """
 
+import io
 import logging
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, UploadFile, File, Query
+from fastapi import APIRouter, Depends, UploadFile, File, Query, HTTPException
 from fastapi.responses import StreamingResponse
-import io
 
 from app_v2.dependencies import (
     require_hub_admin,
@@ -17,6 +17,7 @@ from app_v2.dependencies import (
     get_hub_content_service,
     get_coach_config_service,
     get_compliance_service,
+    get_organization_service,
 )
 from app_v2.schemas.hub import (
     AddHubAdminRequest,
@@ -97,7 +98,6 @@ async def get_organization(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Get organization details."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     # Get first organization (or user's organization)
@@ -122,7 +122,6 @@ async def get_members(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Get organization members."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     members = await org_service.get_organization_members()
@@ -145,7 +144,6 @@ async def get_organizations(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Get all organizations."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     organizations = await org_service.get_all_organizations()
@@ -169,7 +167,6 @@ async def create_organization(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Create a new organization."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     org = await org_service.create_organization(
@@ -196,7 +193,6 @@ async def get_org_admins(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Get all organization admins."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     admins = await org_service.get_org_admins()
@@ -210,7 +206,6 @@ async def add_org_admin(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Add an organization admin."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     await org_service.add_org_admin(
@@ -227,7 +222,6 @@ async def remove_org_admin(
     user: Annotated[dict, Depends(require_hub_admin)],
 ):
     """Remove an organization admin membership."""
-    from app_v2.dependencies import get_organization_service
 
     org_service = get_organization_service()
     await org_service.remove_org_admin(membership_id)
@@ -378,7 +372,6 @@ async def get_content_item(
     item = await content_service.get_by_id(content_id)
 
     if not item:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail={"message": "Content not found"})
 
     return success_response({
@@ -454,7 +447,6 @@ async def update_content_item(
     )
 
     if not item:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail={"message": "Content not found"})
 
     return success_response({
@@ -535,7 +527,6 @@ async def get_user_compliance(
     data = await compliance_service.get_user_compliance_data(email)
 
     if not data:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail={"message": "User not found"})
 
     return success_response(data)

@@ -378,6 +378,109 @@ Best regards,
             text=text_content,
         )
 
+    async def send_meeting_scheduled_email(
+        self,
+        to_email: str,
+        user_name: Optional[str] = None,
+        discussion_title: str = "",
+        meeting_datetime: str = "",
+        timezone: str = "UTC",
+        meeting_link: str = "",
+    ) -> dict:
+        """
+        Send meeting scheduled notification email.
+
+        Args:
+            to_email: Recipient email address
+            user_name: User's first name (optional)
+            discussion_title: Title/topic of the meeting
+            meeting_datetime: Formatted date and time string
+            timezone: Timezone string
+            meeting_link: URL to join the meeting
+
+        Returns:
+            dict with success status and message
+        """
+        name = user_name or "there"
+        subject = f"Human First AI Meeting Scheduled: {discussion_title}"
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+        .info-box {{ background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+        .info-row {{ margin: 12px 0; }}
+        .info-label {{ color: #666; font-size: 14px; }}
+        .info-value {{ font-weight: 600; font-size: 16px; margin-top: 4px; }}
+        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Meeting Scheduled</h1>
+    </div>
+    <div class="container">
+        <p>Hi {name},</p>
+        <p>A new Think Tank meeting has been scheduled for your group.</p>
+
+        <div class="info-box">
+            <div class="info-row">
+                <div class="info-label">Discussion Topic</div>
+                <div class="info-value">{discussion_title}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">When</div>
+                <div class="info-value">{meeting_datetime} ({timezone})</div>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{meeting_link}" class="button">Join Meeting</a>
+        </div>
+
+        <p>We look forward to seeing you there.</p>
+
+        <div class="footer">
+            <p>Best,<br>{self._team_name}</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_content = f"""
+Human First AI Meeting Scheduled: {discussion_title}
+
+Hi {name},
+
+A new Think Tank meeting has been scheduled for your group.
+
+Discussion Topic: {discussion_title}
+
+When: {meeting_datetime} ({timezone})
+
+Join Meeting: {meeting_link}
+
+We look forward to seeing you there.
+
+Best,
+{self._team_name}
+"""
+
+        return await self._send(
+            to=to_email,
+            subject=subject,
+            html=html_content,
+            text=text_content,
+        )
+
     async def send_password_reset_email(
         self,
         to_email: str,

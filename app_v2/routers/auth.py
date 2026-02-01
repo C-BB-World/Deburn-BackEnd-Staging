@@ -7,7 +7,8 @@ Provides authentication endpoints for registration, login, logout, and session m
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from bson import ObjectId
+from fastapi import APIRouter, Depends, Request, HTTPException
 
 from app_v2.pipelines import preferences as preferences_pipelines
 from app_v2.schemas.auth import (
@@ -24,6 +25,7 @@ from app_v2.dependencies import (
     require_auth,
     get_client_ip,
     get_user_agent,
+    get_main_db,
 )
 from app_v2.services.email import EmailService
 from common.utils import success_response
@@ -49,8 +51,6 @@ async def register(
 
     Creates a new user account with the provided credentials.
     """
-    from fastapi import HTTPException
-
     print(f"[REGISTER] Starting registration for email: {body.email}")
 
     # Validate password confirmation
@@ -144,8 +144,6 @@ async def login(
 
     Authenticates user with email and password.
     """
-    from fastapi import HTTPException
-
     user_service = get_user_service()
     firebase_auth = get_firebase_auth()
     session_manager = get_session_manager()
@@ -320,9 +318,6 @@ async def get_admin_status(
 
     Returns admin status and list of organizations where user is admin.
     """
-    from bson import ObjectId
-    from app_v2.dependencies import get_main_db
-
     db = get_main_db()
     user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(str(user["_id"]))
 

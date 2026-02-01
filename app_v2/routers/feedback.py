@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app_v2.dependencies import require_auth, get_feedback_service
+from app_v2.pipelines import feedback as feedback_pipelines
 from app_v2.services.feedback import FeedbackService
 from common.utils import success_response
 
@@ -52,7 +53,6 @@ async def submit_feedback(
     Stores feedback in deburn-hub.feedback collection.
     Requires at least a rating or content.
     """
-    from app_v2.pipelines import feedback as pipelines
 
     # Validate that at least rating or content is provided
     if not body.rating and not body.content:
@@ -64,7 +64,7 @@ async def submit_feedback(
     user_id = str(user.get("_id", ""))
     user_name = f"{user.get('profile', {}).get('firstName', '')} {user.get('profile', {}).get('lastName', '')}".strip()
 
-    result = await pipelines.submit_general_feedback_pipeline(
+    result = await feedback_pipelines.submit_general_feedback_pipeline(
         feedback_service=feedback_service,
         user_id=user_id,
         user_name=user_name,
@@ -89,11 +89,10 @@ async def submit_learning_rating(
     If user already rated (non-anonymous), updates their rating.
     Anonymous ratings are always added as new entries.
     """
-    from app_v2.pipelines import feedback as pipelines
 
     user_id = str(user.get("_id", ""))
 
-    result = await pipelines.submit_learning_rating_pipeline(
+    result = await feedback_pipelines.submit_learning_rating_pipeline(
         feedback_service=feedback_service,
         user_id=user_id,
         content_id=body.contentId,
@@ -116,11 +115,10 @@ async def get_learning_ratings(
 
     Returns total ratings and user's own rating if exists.
     """
-    from app_v2.pipelines import feedback as pipelines
 
     user_id = str(user.get("_id", ""))
 
-    result = await pipelines.get_learning_ratings_pipeline(
+    result = await feedback_pipelines.get_learning_ratings_pipeline(
         feedback_service=feedback_service,
         content_id=content_id,
         user_id=user_id

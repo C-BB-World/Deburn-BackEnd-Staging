@@ -16,6 +16,7 @@ from app_v2.dependencies import (
     get_insight_generator,
     get_insight_service,
 )
+from app_v2.pipelines import checkin as checkin_pipelines
 from app_v2.services.checkin.checkin_service import CheckInService
 from app_v2.services.checkin.checkin_analytics import CheckInAnalytics
 from app_v2.services.checkin.insight_generator import InsightGenerator
@@ -43,7 +44,6 @@ async def submit_checkin(
     Creates or updates today's check-in and returns streak and AI insight.
     The insight is also persisted so it can be viewed on the dashboard.
     """
-    from app_v2.pipelines import checkin as pipelines
 
     metrics = {
         "mood": body.mood,
@@ -53,7 +53,7 @@ async def submit_checkin(
         "stress": body.stress
     }
 
-    result = await pipelines.submit_checkin_pipeline(
+    result = await checkin_pipelines.submit_checkin_pipeline(
         checkin_service=checkin_service,
         checkin_analytics=checkin_analytics,
         insight_generator=insight_generator,
@@ -83,12 +83,11 @@ async def get_trends(
 
     Returns formatted data with values and percentage changes.
     """
-    from app_v2.pipelines import checkin as pipelines
 
     if period not in [7, 30, 90]:
         period = 30
 
-    result = await pipelines.get_trends_pipeline(
+    result = await checkin_pipelines.get_trends_pipeline(
         checkin_analytics=checkin_analytics,
         user_id=str(user["_id"]),
         period=period
