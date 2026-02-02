@@ -33,6 +33,7 @@ from app_v2.schemas.circles import (
     MoveMemberRequest,
     AddMemberRequest,
     CreateGroupRequest,
+    UpdateGroupRequest,
 )
 from app_v2.services.email.email_service import EmailService
 from common.utils import success_response
@@ -874,6 +875,34 @@ async def create_group(
         "name": group.get("name", ""),
         "memberCount": 0,
         "members": [],
+    })
+
+
+@router.patch("/pools/{pool_id}/groups/{group_id}")
+async def update_group(
+    pool_id: str,
+    group_id: str,
+    body: UpdateGroupRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """
+    Update a group's name.
+
+    Only organization admins can update groups.
+    """
+    group_service = get_group_service()
+    user_id = str(user["_id"])
+
+    group = await group_service.update_group(
+        group_id=group_id,
+        name=body.name,
+        admin_id=user_id
+    )
+
+    return success_response({
+        "id": str(group["_id"]),
+        "name": group.get("name", ""),
+        "memberCount": len(group.get("members", [])),
     })
 
 

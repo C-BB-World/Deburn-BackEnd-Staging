@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class AvailabilitySlot(BaseModel):
-    day: int = Field(..., ge=0, le=6)
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
     hour: int = Field(..., ge=0, le=23)
 
 
@@ -87,4 +87,8 @@ class AddMemberRequest(BaseModel):
 
 
 class CreateGroupRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class UpdateGroupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)

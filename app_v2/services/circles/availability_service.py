@@ -61,29 +61,32 @@ class AvailabilityService:
         self,
         user_id: str,
         group_id: str,
-        slots: List[Dict[str, int]],
+        slots: List[Dict[str, Any]],
         user_timezone: str = "UTC"
     ) -> Dict[str, Any]:
         """
-        Update user's weekly availability for a specific group.
+        Update user's availability for a specific group.
 
         Args:
             user_id: User's ID
             group_id: Group's ID
-            slots: List of {day: 0-6, hour: 0-23}
+            slots: List of {date: "YYYY-MM-DD", hour: 0-23}
             user_timezone: User's timezone
         """
         validated_slots = []
         for slot in slots:
-            day = slot.get("day")
+            date = slot.get("date")
             hour = slot.get("hour")
 
-            if day is None or hour is None:
+            if date is None or hour is None:
                 continue
-            if not (0 <= day <= 6) or not (0 <= hour <= 23):
+            if not (0 <= hour <= 23):
+                continue
+            # Basic date format validation
+            if not isinstance(date, str) or len(date) != 10:
                 continue
 
-            validated_slots.append({"day": day, "hour": hour})
+            validated_slots.append({"date": date, "hour": hour})
 
         now = datetime.now(timezone.utc)
         user_oid = ObjectId(user_id)
@@ -160,7 +163,7 @@ class AvailabilityService:
     async def find_common_availability(
         self,
         group_id: str
-    ) -> List[Dict[str, int]]:
+    ) -> List[Dict[str, Any]]:
         """
         Find time slots where ALL group members are available.
 
@@ -168,7 +171,7 @@ class AvailabilityService:
             group_id: Group ID
 
         Returns:
-            List of common slots [{day, hour}]
+            List of common slots [{date, hour}]
             Empty if not all members have set availability
         """
         group = await self._groups_collection.find_one({"_id": ObjectId(group_id)})
@@ -200,7 +203,7 @@ class AvailabilityService:
         for member in member_availability:
             if str(member.get("userId")) in member_ids:
                 slots = member.get("slots", [])
-                slot_tuples = {(s["day"], s["hour"]) for s in slots}
+                slot_tuples = {(s.get("date"), s.get("hour")) for s in slots}
                 slot_sets.append(slot_tuples)
 
         if not slot_sets:
@@ -210,7 +213,7 @@ class AvailabilityService:
         for slot_set in slot_sets[1:]:
             common = common.intersection(slot_set)
 
-        return [{"day": day, "hour": hour} for day, hour in sorted(common)]
+        return [{"date": date, "hour": hour} for date, hour in sorted(common)]
 
     async def get_group_availability_status(
         self,
@@ -336,7 +339,7 @@ class AvailabilityService:
             slots = member.get("slots", [])
 
             for slot in slots:
-                key = (slot.get("day"), slot.get("hour"))
+                key = (slot.get("date"), slot.get("hour"))
                 if key[0] is None or key[1] is None:
                     continue
                 if key not in slot_members:
@@ -345,9 +348,9 @@ class AvailabilityService:
 
         # Convert to list format
         slots_list = []
-        for (day, hour), available_members in sorted(slot_members.items()):
+        for (date, hour), available_members in sorted(slot_members.items()):
             slots_list.append({
-                "day": day,
+                "date": date,
                 "hour": hour,
                 "availableCount": len(available_members),
                 "availableMembers": available_members

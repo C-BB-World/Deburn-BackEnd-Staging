@@ -45,6 +45,7 @@ class GroupService:
         self._invitations_collection = db["circleinvitations"]
         self._org_members_collection = db["organizationmembers"]
         self._users_collection = db["users"]
+        self._availability_collection = db["useravailabilities"]
 
     async def assign_groups(self, pool_id: str, user_id: str) -> Dict[str, Any]:
         """
@@ -254,6 +255,7 @@ class GroupService:
     ) -> None:
         """
         Move a member between groups (admin only).
+        Also transfers the member's availability to the new group.
 
         Raises:
             ValidationException: If target group is full
@@ -285,6 +287,7 @@ class GroupService:
 
         now = datetime.now(timezone.utc)
 
+        # Move member in groups collection
         await self._groups_collection.update_one(
             {"_id": ObjectId(from_group_id)},
             {
@@ -301,7 +304,76 @@ class GroupService:
             }
         )
 
+        # Transfer availability to new group
+        await self._transfer_member_availability(
+            member_id, from_group_id, to_group_id, now
+        )
+
         logger.info(f"Member {member_id} moved from group {from_group_id} to {to_group_id}")
+
+    async def _transfer_member_availability(
+        self,
+        member_id: str,
+        from_group_id: str,
+        to_group_id: str,
+        now: datetime
+    ) -> None:
+        """
+        Transfer a member's availability from one group to another.
+        """
+        member_oid = ObjectId(member_id)
+
+        # Find the member's availability in source group
+        source_availability = await self._availability_collection.find_one(
+            {"groupId": ObjectId(from_group_id)}
+        )
+
+        if not source_availability:
+            return
+
+        # Find the member's entry in the source availability
+        member_availability = None
+        for entry in source_availability.get("memberAvailability", []):
+            if entry.get("userId") == member_oid:
+                member_availability = entry
+                break
+
+        if not member_availability:
+            return
+
+        # Remove from source group's availability
+        await self._availability_collection.update_one(
+            {"groupId": ObjectId(from_group_id)},
+            {
+                "$pull": {"memberAvailability": {"userId": member_oid}},
+                "$set": {"updatedAt": now}
+            }
+        )
+
+        # Add to target group's availability (upsert if document doesn't exist)
+        target_availability = await self._availability_collection.find_one(
+            {"groupId": ObjectId(to_group_id)}
+        )
+
+        if target_availability:
+            # Update existing document
+            await self._availability_collection.update_one(
+                {"groupId": ObjectId(to_group_id)},
+                {
+                    "$push": {"memberAvailability": member_availability},
+                    "$set": {"updatedAt": now}
+                }
+            )
+        else:
+            # Create new document for target group
+            await self._availability_collection.insert_one({
+                "groupId": ObjectId(to_group_id),
+                "memberAvailability": [member_availability],
+                "createdAt": now,
+                "updatedAt": now
+            })
+
+        logger.info(f"Transferred availability for member {member_id} to group {to_group_id}")
 
     async def set_leader(
         self,
@@ -397,6 +469,55 @@ class GroupService:
 
         logger.info(f"Created empty group '{name}' in pool {pool_id}")
         return group_doc
+
+    async def update_group(
+        self,
+        group_id: str,
+        name: str,
+        admin_id: str
+    ) -> Dict[str, Any]:
+        """
+        Update a group's name (admin only).
+
+        Args:
+            group_id: Group ID
+            name: New group name
+            admin_id: Admin performing the update
+
+        Returns:
+            Updated group document
+        """
+        group = await self.get_group(group_id)
+
+        pool = await self._pools_collection.find_one({"_id": group["poolId"]})
+        if not pool:
+            raise NotFoundException(message="Pool not found", code="POOL_NOT_FOUND")
+
+        if not await self._is_org_admin(str(pool["organizationId"]), admin_id):
+            raise ForbiddenException(message="Not authorized", code="NOT_ORG_ADMIN")
+
+        # Check for duplicate name in pool (excluding this group)
+        existing = await self._groups_collection.find_one({
+            "poolId": group["poolId"],
+            "name": name,
+            "status": "active",
+            "_id": {"$ne": ObjectId(group_id)}
+        })
+        if existing:
+            raise ValidationException(
+                message="A group with this name already exists",
+                code="DUPLICATE_GROUP_NAME"
+            )
+
+        now = datetime.now(timezone.utc)
+
+        await self._groups_collection.update_one(
+            {"_id": ObjectId(group_id)},
+            {"$set": {"name": name, "updatedAt": now}}
+        )
+
+        logger.info(f"Updated group {group_id} name to '{name}'")
+        return await self.get_group(group_id)
 
     async def remove_member(
         self,

@@ -29,7 +29,7 @@ async def get_group_availability_for_scheduling(group_id: str) -> Dict[str, Any]
             "members": [str],  # All member names
             "slots": [
                 {
-                    "day": int,  # 0-6 (Sun-Sat)
+                    "date": str,  # YYYY-MM-DD
                     "hour": int,  # 0-23
                     "availableCount": int,
                     "availableMembers": [str]
@@ -116,7 +116,7 @@ def _calculate_slot_availability(
     Returns:
         List of slots with availability counts and member names
     """
-    # Map: (day, hour) -> list of member names available
+    # Map: (date, hour) -> list of member names available
     slot_members: Dict[tuple, List[str]] = {}
 
     for member in member_availability:
@@ -131,22 +131,22 @@ def _calculate_slot_availability(
         slots = member.get("slots", [])
 
         for slot in slots:
-            day = slot.get("day")
+            date = slot.get("date")
             hour = slot.get("hour")
 
-            if day is None or hour is None:
+            if date is None or hour is None:
                 continue
 
-            key = (day, hour)
+            key = (date, hour)
             if key not in slot_members:
                 slot_members[key] = []
             slot_members[key].append(member_name)
 
-    # Convert to list format, sorted by day then hour
+    # Convert to list format, sorted by date then hour
     slots_list = []
-    for (day, hour), available_members in sorted(slot_members.items()):
+    for (date, hour), available_members in sorted(slot_members.items()):
         slots_list.append({
-            "day": day,
+            "date": date,
             "hour": hour,
             "availableCount": len(available_members),
             "availableMembers": available_members
