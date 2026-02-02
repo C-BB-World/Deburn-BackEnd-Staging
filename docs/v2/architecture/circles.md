@@ -803,10 +803,48 @@ class GroupService:
     ) -> None:
         """
         Move a member between groups (admin only).
+        Also transfers the member's availability to the new group.
+
+        Steps:
+            1. Verify admin is org admin for the pool
+            2. Verify target group has room (< MAX_GROUP_SIZE)
+            3. Remove member from source group
+            4. Add member to target group
+            5. Transfer member's availability from source to target group
 
         Raises:
-            ValidationError: If move would leave source group < 3 members
             ValidationError: If target group is full
+            ForbiddenError: If user is not org admin
+        """
+
+    def _transfer_member_availability(
+        self,
+        member_id: str,
+        from_group_id: str,
+        to_group_id: str,
+        now: datetime
+    ) -> None:
+        """
+        Transfer a member's availability from one group to another.
+
+        Steps:
+            1. Find member's availability entry in source group's document
+            2. Remove entry from source group ($pull)
+            3. Add entry to target group ($push), creating document if needed
+        """
+
+    def update_group(
+        self,
+        group_id: str,
+        name: str,
+        admin_id: str
+    ) -> dict:
+        """
+        Update group name (admin only).
+
+        Raises:
+            ValidationError: If name already exists in pool
+            ForbiddenError: If user is not org admin
         """
 
     def set_leader(
@@ -994,12 +1032,15 @@ class MeetingService:
 
 ### AvailabilityService
 
-Manages user availability and finds common meeting times.
+Manages user availability and finds common meeting times. Availability is stored per-group in the `useravailabilities` collection.
+
+> **Update (February 2026):** Availability now uses specific dates (`YYYY-MM-DD`) instead of day-of-week (`0-6`). This allows users to set availability for specific future dates rather than recurring weekly patterns.
 
 ```python
 class AvailabilityService:
     """
     Handles user availability for circle meetings.
+    Availability is stored per-group with member-specific slots.
     """
 
     def __init__(self, db: Database):
@@ -1008,44 +1049,49 @@ class AvailabilityService:
             db: MongoDB database connection
         """
 
-    def get_availability(self, user_id: str) -> UserAvailability | None:
-        """Get user's availability settings."""
+    def get_availability(self, user_id: str, group_id: str) -> dict | None:
+        """Get user's availability for a specific group."""
+
+    def get_group_availability(self, group_id: str) -> dict | None:
+        """Get all members' availability for a group."""
 
     def update_availability(
         self,
         user_id: str,
+        group_id: str,
         slots: list[dict],
         timezone: str = "UTC"
-    ) -> UserAvailability:
+    ) -> dict:
         """
-        Update user's weekly availability.
+        Update user's availability for a specific group.
 
         Args:
             user_id: User's ID
-            slots: List of {day: 0-6, hour: 0-23}
+            group_id: Group's ID
+            slots: List of {date: "YYYY-MM-DD", hour: 0-23}
             timezone: User's timezone
 
         Example slots:
             [
-                {"day": 1, "hour": 9},   # Monday 9 AM
-                {"day": 1, "hour": 10},  # Monday 10 AM
-                {"day": 3, "hour": 14},  # Wednesday 2 PM
+                {"date": "2026-02-05", "hour": 9},   # Feb 5 at 9 AM
+                {"date": "2026-02-05", "hour": 10},  # Feb 5 at 10 AM
+                {"date": "2026-02-07", "hour": 14},  # Feb 7 at 2 PM
             ]
         """
 
     def find_common_availability(
         self,
-        user_ids: list[str]
+        group_id: str
     ) -> list[dict]:
         """
-        Find time slots where ALL users are available.
+        Find time slots where ALL group members are available.
 
         Args:
-            user_ids: List of user IDs
+            group_id: Group ID
 
         Returns:
-            List of common slots [{day, hour}]
-            Empty if not all users have set availability
+            List of common slots [{date, hour}]
+            Empty if not all members have set availability
         """
 
     def get_group_availability_status(
@@ -1062,6 +1108,20 @@ class AvailabilityService:
                 - membersWithAvailability: Count who set availability
                 - membersWithoutAvailability: Count who haven't
                 - allMembersSet: bool
+        """
+
+    def get_detailed_availability(
+        self,
+        group_id: str
+    ) -> dict:
+        """
+        Get detailed availability for scheduling with member counts per slot.
+
+        Returns:
+            dict with:
+                - totalMembers: Group size
+                - members: List of all member names
+                - slots: List of {date, hour, availableCount, availableMembers}
         """
 ```
 
@@ -1219,25 +1279,59 @@ class AvailabilityService:
 
 ---
 
-### UserAvailability (Collection: `useravailability`)
+### GroupAvailability (Collection: `useravailabilities`)
+
+> **Update (February 2026):** Availability is now stored per-group (not per-user) with specific dates instead of day-of-week.
 
 ```python
-# useravailability collection
+# useravailabilities collection
 {
     "_id": ObjectId,
-    "userId": ObjectId,            # User this availability belongs to
-    "slots": [{
-        "day": int,                # 0 (Sunday) - 6 (Saturday)
-        "hour": int                # 0-23
+    "groupId": ObjectId,           # Group this availability belongs to
+    "memberAvailability": [{
+        "userId": ObjectId,        # Member user ID
+        "name": str,               # Member's display name
+        "slots": [{
+            "date": str,           # Date in "YYYY-MM-DD" format
+            "hour": int            # 0-23
+        }],
+        "timezone": str,           # Member's timezone
+        "updatedAt": datetime      # When this member last updated
     }],
-    "timezone": str,               # User's timezone
     "createdAt": datetime,
     "updatedAt": datetime
 }
 ```
 
+**Example Document:**
+```json
+{
+    "_id": "6979e5bb6247214d58624b8c",
+    "groupId": "6979dcec33f0237bf4624b6d",
+    "memberAvailability": [
+        {
+            "userId": "6968fe23707530857401dc53",
+            "name": "John Doe",
+            "slots": [
+                { "date": "2026-02-05", "hour": 13 },
+                { "date": "2026-02-05", "hour": 14 },
+                { "date": "2026-02-06", "hour": 10 }
+            ],
+            "timezone": "UTC",
+            "updatedAt": "2026-02-02T14:39:12.363Z"
+        }
+    ],
+    "createdAt": "2026-01-28T10:32:27.162Z",
+    "updatedAt": "2026-02-02T14:39:12.363Z"
+}
+```
+
 **Indexes:**
-- `{ userId: 1 }` - Unique, one per user
+- `{ groupId: 1 }` - Unique, one document per group
+
+**Notes:**
+- When a member is moved between groups, their availability entry is transferred to the new group
+- Past dates are filtered out on the frontend when displaying available slots
 
 ---
 
