@@ -181,31 +181,54 @@ class EmailService:
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "Verify your email")}</h1>
-    </div>
-        <p>{t.get("greeting", f"Hi {name},")}</p>
-        <p>{t.get("body", "Thanks for signing up! Please verify your email address by clicking the button below:")}</p>
-        <div style="text-align: center;">
-            <a href="{verification_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Verify Email")}</a>
-        </div>
-        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{verification_link}</p>
-        <p>{t.get("ignore_notice", "If you didn't create an account, you can safely ignore this email.")}</p>
-        <div class="footer">
-            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Verify your email")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", "Thanks for signing up! Please verify your email address by clicking the button below:")}</p>
+
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{verification_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "Verify Email")}</a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 8px 0; font-size: 14px; color: #666666;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 14px; color: #2D4A47; word-break: break-all;">{verification_link}</p>
+                            <p style="margin: 0; font-size: 16px; color: #333333;">{t.get("ignore_notice", "If you didn't create an account, you can safely ignore this email.")}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
@@ -276,14 +299,21 @@ class EmailService:
         topic_text = ""
         if topic:
             topic_label = t.get("topic_label", "Topic:")
-            topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>{topic_label}</strong> {topic}</p>'
+            topic_html = f'<p style="margin: 16px 0 0 0; font-size: 16px; color: #666666;"><strong>{topic_label}</strong> {topic}</p>'
             topic_text = f"\n{topic_label} {topic}"
 
         # Build custom message section
         message_html = ""
         message_text = ""
         if custom_message:
-            message_html = f'<div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0; font-style: italic;">"{custom_message}"</p></div>'
+            message_html = f'''
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 16px; border-radius: 8px;">
+                                        <p style="margin: 0; font-size: 16px; font-style: italic; color: #333333;">"{custom_message}"</p>
+                                    </td>
+                                </tr>
+                            </table>'''
             message_text = f'\n\nMessage from the inviter:\n"{custom_message}"'
 
         # Build expiry section
@@ -291,7 +321,7 @@ class EmailService:
         expiry_text = ""
         if expires_at:
             expiry_notice = t.get("expiry_notice", f"This invitation expires on {expires_at}.")
-            expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">{expiry_notice}</p>'
+            expiry_html = f'<p style="margin: 20px 0 0 0; font-size: 14px; color: #999999;">{expiry_notice}</p>'
             expiry_text = f"\n\n{expiry_notice}"
 
         html_content = f"""
@@ -299,37 +329,66 @@ class EmailService:
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; }}
-        .button-primary {{ background: #2D4A47; color: white; }}
-        .button-secondary {{ background: #e5e7eb; color: #374151; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "You're Invited!")}</h1>
-    </div>
-    <div class="container">
-        <p>{t.get("greeting", f"Hi {name},")}</p>
-        <p>{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
-        {topic_html}
-        {message_html}
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="{accept_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #2D4A47; color: #ffffff !important;">{t.get("accept_button", "Accept Invitation")}</a>
-            <a href="{decline_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #e5e7eb; color: #374151;">{t.get("decline_button", "Decline")}</a>
-        </div>
-        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{accept_link}</p>
-        {expiry_html}
-        <div class="footer">
-            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "You're Invited!")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
+                            {topic_html}
+                            {message_html}
+
+                            <!-- Buttons -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <table role="presentation" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                                    <a href="{accept_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("accept_button", "Accept Invitation")}</a>
+                                                </td>
+                                                <td width="20"></td>
+                                                <td align="center" bgcolor="#e5e7eb" style="background-color: #e5e7eb; border-radius: 8px;">
+                                                    <a href="{decline_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #374151; text-decoration: none;">{t.get("decline_button", "Decline")}</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 8px 0; font-size: 14px; color: #666666;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+                            <p style="margin: 0 0 16px 0; font-size: 14px; color: #2D4A47; word-break: break-all;">{accept_link}</p>
+                            {expiry_html}
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
@@ -398,48 +457,70 @@ class EmailService:
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .info-box {{ background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .info-row {{ display: flex; justify-content: space-between; margin: 8px 0; }}
-        .info-label {{ color: #666; }}
-        .info-value {{ font-weight: 600; }}
-        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "Group Change Notice")}</h1>
-    </div>
-    <div class="container">
-        <p>{t.get("greeting", f"Hi {name},")}</p>
-        <p>{t.get("body", f"You've been moved to a new group in <strong>{pool_name}</strong>.")}</p>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Group Change Notice")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", f"You've been moved to a new group in <strong>{pool_name}</strong>.")}</p>
 
-        <div class="info-box">
-            <div class="info-row">
-                <span class="info-label">{t.get("previous_label", "Previous Group:")}</span>
-                <span class="info-value">{from_group_name}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">{t.get("new_label", "New Group:")}</span>
-                <span class="info-value">{to_group_name}</span>
-            </div>
-        </div>
+                            <!-- Info Box -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #666666;">{t.get("previous_label", "Previous Group:")}</td>
+                                                <td align="right" style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #333333;">{from_group_name}</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; font-size: 14px; color: #666666;">{t.get("new_label", "New Group:")}</td>
+                                                <td align="right" style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #333333;">{to_group_name}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
 
-        <p>{t.get("info", "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("info", "Your new group members are looking forward to connecting with you. Visit your circles page to see your new group and schedule meetings.")}</p>
 
-        <div style="text-align: center;">
-            <a href="{circles_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "View Your Circles")}</a>
-        </div>
-
-        <div class="footer">
-            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{circles_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "View Your Circles")}</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
@@ -507,48 +588,74 @@ class EmailService:
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .info-box {{ background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .info-row {{ margin: 12px 0; }}
-        .info-label {{ color: #666; font-size: 14px; }}
-        .info-value {{ font-weight: 600; font-size: 16px; margin-top: 4px; }}
-        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "Meeting Scheduled")}</h1>
-    </div>
-    <div class="container">
-        <p>{t.get("greeting", f"Hi {name},")}</p>
-        <p>{t.get("body", "A new Think Tank meeting has been scheduled for your group.")}</p>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Meeting Scheduled")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", "A new Think Tank meeting has been scheduled for your group.")}</p>
 
-        <div class="info-box">
-            <div class="info-row">
-                <div class="info-label">{t.get("topic_label", "Discussion Topic")}</div>
-                <div class="info-value">{discussion_title}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">{t.get("when_label", "When")}</div>
-                <div class="info-value">{meeting_datetime} ({timezone})</div>
-            </div>
-        </div>
+                            <!-- Info Box -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding: 0 0 12px 0;">
+                                                    <p style="margin: 0 0 4px 0; font-size: 14px; color: #666666;">{t.get("topic_label", "Discussion Topic")}</p>
+                                                    <p style="margin: 0; font-size: 16px; font-weight: 600; color: #333333;">{discussion_title}</p>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 12px 0 0 0;">
+                                                    <p style="margin: 0 0 4px 0; font-size: 14px; color: #666666;">{t.get("when_label", "When")}</p>
+                                                    <p style="margin: 0; font-size: 16px; font-weight: 600; color: #333333;">{meeting_datetime} ({timezone})</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
 
-        <div style="text-align: center;">
-            <a href="{meeting_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Join Meeting")}</a>
-        </div>
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{meeting_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "Join Meeting")}</a>
+                                    </td>
+                                </tr>
+                            </table>
 
-        <p>{t.get("closing", "We look forward to seeing you there.")}</p>
-
-        <div class="footer">
-            <p>{t.get("sign_off", "Best,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+                            <p style="margin: 0; font-size: 16px; color: #333333;">{t.get("closing", "We look forward to seeing you there.")}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
@@ -608,32 +715,54 @@ class EmailService:
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; background: #2D4A47; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "Reset your password")}</h1>
-    </div>
-    <div class="container">
-        <p>{t.get("greeting", f"Hi {name},")}</p>
-        <p>{t.get("body", "We received a request to reset your password. Click the button below to create a new password:")}</p>
-        <div style="text-align: center;">
-            <a href="{reset_link}" style="display: inline-block; background: #2D4A47; color: #ffffff !important; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: 600;">{t.get("button", "Reset Password")}</a>
-        </div>
-        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{reset_link}</p>
-        <p>{t.get("ignore_notice", "If you didn't request a password reset, you can safely ignore this email.")}</p>
-        <div class="footer">
-            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Reset your password")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", "We received a request to reset your password. Click the button below to create a new password:")}</p>
+
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{reset_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "Reset Password")}</a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 8px 0; font-size: 14px; color: #666666;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 14px; color: #2D4A47; word-break: break-all;">{reset_link}</p>
+                            <p style="margin: 0; font-size: 16px; color: #333333;">{t.get("ignore_notice", "If you didn't request a password reset, you can safely ignore this email.")}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
@@ -926,55 +1055,91 @@ class EmailService:
             topic_html = ""
             if topic:
                 topic_label = t.get("topic_label", "Topic:")
-                topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>{topic_label}</strong> {topic}</p>'
+                topic_html = f'<p style="margin: 16px 0 0 0; font-size: 16px; color: #666666;"><strong>{topic_label}</strong> {topic}</p>'
 
             # Build custom message section
             message_html = ""
             if custom_message:
-                message_html = f'<div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0; font-style: italic;">"{custom_message}"</p></div>'
+                message_html = f'''
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 16px; border-radius: 8px;">
+                                        <p style="margin: 0; font-size: 16px; font-style: italic; color: #333333;">"{custom_message}"</p>
+                                    </td>
+                                </tr>
+                            </table>'''
 
             # Build expiry section
             expiry_html = ""
             if expires_at:
                 expiry_notice = t.get("expiry_notice", f"This invitation expires on {expires_at}.")
-                expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">{expiry_notice}</p>'
+                expiry_html = f'<p style="margin: 20px 0 0 0; font-size: 14px; color: #999999;">{expiry_notice}</p>'
 
             html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
-        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
-        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
-        .button {{ display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; }}
-        .button-primary {{ background: #2D4A47; color: white; }}
-        .button-secondary {{ background: #e5e7eb; color: #374151; }}
-        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="header">
-        <h1>{t.get("header", "You're Invited!")}</h1>
-    </div>
-    <div class="container">
-        <p>{t.get("greeting", f"Hi {first_name},")}</p>
-        <p>{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
-        {topic_html}
-        {message_html}
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="{accept_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #2D4A47; color: #ffffff !important;">{t.get("accept_button", "Accept Invitation")}</a>
-            <a href="{decline_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #e5e7eb; color: #374151;">{t.get("decline_button", "Decline")}</a>
-        </div>
-        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
-        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{accept_link}</p>
-        {expiry_html}
-        <div class="footer">
-            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
-        </div>
-    </div>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "You're Invited!")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {first_name},")}</p>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
+                            {topic_html}
+                            {message_html}
+
+                            <!-- Buttons -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <table role="presentation" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                                    <a href="{accept_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("accept_button", "Accept Invitation")}</a>
+                                                </td>
+                                                <td width="20"></td>
+                                                <td align="center" bgcolor="#e5e7eb" style="background-color: #e5e7eb; border-radius: 8px;">
+                                                    <a href="{decline_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #374151; text-decoration: none;">{t.get("decline_button", "Decline")}</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 24px 0 8px 0; font-size: 14px; color: #666666;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+                            <p style="margin: 0 0 16px 0; font-size: 14px; color: #2D4A47; word-break: break-all;">{accept_link}</p>
+                            {expiry_html}
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 """
