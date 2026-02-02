@@ -68,9 +68,11 @@ class InvitationService:
         sent = []
         failed = []
         duplicate = []
+        email_batch = []  # Collect emails for batch sending
 
         now = datetime.now(timezone.utc)
         expires_at = now + timedelta(days=expiry_days)
+        expires_at_formatted = expires_at.strftime("%B %d, %Y")
 
         for invitee in invitees:
             email = invitee.get("email", "").lower().strip()
@@ -113,30 +115,36 @@ class InvitationService:
 
             await self._invitations_collection.insert_one(invitation_doc)
 
-            # Send invitation email (non-blocking - invitation saved even if email fails)
-            try:
-                # Check if user already exists to get their language preference
-                existing_user = await self._db["users"].find_one({"email": email})
-                invitee_language = "en"
-                if existing_user:
-                    profile = existing_user.get("profile", {})
-                    invitee_language = profile.get("preferredLanguage") or "en"
+            # Get language preference if user exists
+            existing_user = await self._db["users"].find_one({"email": email})
+            invitee_language = "en"
+            if existing_user:
+                profile = existing_user.get("profile", {})
+                invitee_language = profile.get("preferredLanguage") or "en"
 
+            # Add to batch for sending later
+            email_batch.append({
+                "email": email,
+                "token": token,
+                "firstName": invitee.get("firstName"),
+                "language": invitee_language,
+                "expires_at": expires_at_formatted,
+            })
+
+            sent.append({"email": email, "token": token})
+
+        # Send all invitation emails in batch
+        if email_batch:
+            try:
                 email_service = EmailService()
-                await email_service.send_circle_invitation_email(
-                    to_email=email,
-                    token=token,
+                await email_service.send_circle_invitation_emails_batch(
+                    invitations=email_batch,
                     pool_name=pool.get("name", "Leadership Circle"),
                     topic=pool.get("topic"),
                     custom_message=pool.get("invitationSettings", {}).get("customMessage"),
-                    first_name=invitee.get("firstName"),
-                    expires_at=expires_at.strftime("%B %d, %Y"),
-                    language=invitee_language,
                 )
             except Exception as email_error:
-                logger.warning(f"Failed to send invitation email to {email}: {email_error}")
-
-            sent.append({"email": email, "token": token})
+                logger.warning(f"Failed to send batch invitation emails: {email_error}")
 
         await self._pools_collection.update_one(
             {"_id": ObjectId(pool_id)},

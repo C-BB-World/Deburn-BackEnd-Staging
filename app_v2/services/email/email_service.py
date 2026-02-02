@@ -16,6 +16,13 @@ from typing import Optional
 import httpx
 import aiosmtplib
 
+from config.email_config import (
+    RESEND_API_URL,
+    RESEND_BATCH_API_URL,
+    EMAIL_MAX_BATCH_SIZE,
+    EMAIL_DEFAULTS,
+)
+
 logger = logging.getLogger(__name__)
 
 # Load locale files
@@ -32,8 +39,6 @@ class EmailService:
         - smtp: Send via SMTP (e.g., Resend SMTP relay)
         - resend: Send via Resend HTTP API
     """
-
-    RESEND_API_URL = "https://api.resend.com/emails"
 
     def __init__(
         self,
@@ -769,7 +774,7 @@ class EmailService:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    self.RESEND_API_URL,
+                    RESEND_API_URL,
                     headers={
                         "Authorization": f"Bearer {self._resend_api_key}",
                         "Content-Type": "application/json",
@@ -805,3 +810,195 @@ class EmailService:
                     "success": False,
                     "error": str(e),
                 }
+
+    async def _send_resend_batch(self, emails: list) -> dict:
+        """
+        Send multiple emails via Resend Batch API.
+
+        Args:
+            emails: List of email dicts with keys: to, subject, html, text
+
+        Returns:
+            dict with success status and results
+        """
+        if not self._resend_api_key:
+            return {"success": False, "error": "Resend API key not configured"}
+
+        if not emails:
+            return {"success": True, "data": []}
+
+        # Limit batch size
+        if len(emails) > EMAIL_MAX_BATCH_SIZE:
+            emails = emails[:EMAIL_MAX_BATCH_SIZE]
+            logger.warning(f"Batch size exceeded {EMAIL_MAX_BATCH_SIZE}, truncating")
+
+        # Build batch payload
+        batch_payload = []
+        for email in emails:
+            batch_payload.append({
+                "from": f"{self._from_name} <{self._from_email}>",
+                "to": [email["to"]],
+                "subject": email["subject"],
+                "html": email["html"],
+                "text": email["text"],
+            })
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    RESEND_BATCH_API_URL,
+                    headers={
+                        "Authorization": f"Bearer {self._resend_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=batch_payload,
+                    timeout=30.0,
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"Batch email sent: {len(emails)} emails")
+                    return {
+                        "success": True,
+                        "mode": "resend_batch",
+                        "data": data.get("data", []),
+                        "count": len(emails),
+                    }
+                else:
+                    error_data = response.json()
+                    error_msg = error_data.get("message", "Unknown error")
+                    logger.error(f"Resend Batch API error: {error_msg}")
+                    return {
+                        "success": False,
+                        "error": error_msg,
+                    }
+
+            except Exception as e:
+                logger.error(f"Failed to send batch email via Resend: {e}")
+                return {
+                    "success": False,
+                    "error": str(e),
+                }
+
+    async def send_circle_invitation_emails_batch(
+        self,
+        invitations: list,
+        pool_name: str,
+        topic: str = None,
+        custom_message: str = None,
+    ) -> dict:
+        """
+        Send circle invitation emails in batch.
+
+        Args:
+            invitations: List of dicts with keys: email, token, firstName, language, expires_at
+            pool_name: Name of the circle pool
+            topic: Discussion topic (optional)
+            custom_message: Custom message from inviter (optional)
+
+        Returns:
+            dict with success status and count
+        """
+        if self._mode == "console":
+            for inv in invitations[:EMAIL_MAX_BATCH_SIZE]:
+                logger.info(f"[BATCH] Would send invitation to {inv['email']}")
+            return {"success": True, "mode": "console", "count": len(invitations)}
+
+        emails = []
+        for inv in invitations[:EMAIL_MAX_BATCH_SIZE]:
+            email = inv.get("email")
+            token = inv.get("token")
+            first_name = inv.get("firstName") or "there"
+            language = inv.get("language", "en")
+            expires_at = inv.get("expires_at", "")
+
+            # Get translations
+            t = self._get_translations(language, "circle_invitation", {
+                "name": first_name,
+                "pool_name": pool_name,
+                "expires_at": expires_at
+            })
+
+            accept_link = f"{self._api_url}/api/circles/invitations/{token}/accept"
+            decline_link = f"{self._api_url}/api/circles/invitations/{token}/decline"
+
+            # Build topic section
+            topic_html = ""
+            if topic:
+                topic_label = t.get("topic_label", "Topic:")
+                topic_html = f'<p style="color: #666; margin-top: 16px;"><strong>{topic_label}</strong> {topic}</p>'
+
+            # Build custom message section
+            message_html = ""
+            if custom_message:
+                message_html = f'<div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 20px 0;"><p style="margin: 0; font-style: italic;">"{custom_message}"</p></div>'
+
+            # Build expiry section
+            expiry_html = ""
+            if expires_at:
+                expiry_notice = t.get("expiry_notice", f"This invitation expires on {expires_at}.")
+                expiry_html = f'<p style="color: #999; font-size: 14px; margin-top: 20px;">{expiry_notice}</p>'
+
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
+        .header {{ background: linear-gradient(135deg, #2D4A47 0%, #5A9A82 100%); padding: 40px 20px; text-align: center; }}
+        .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 40px 20px; }}
+        .button {{ display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; }}
+        .button-primary {{ background: #2D4A47; color: white; }}
+        .button-secondary {{ background: #e5e7eb; color: #374151; }}
+        .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 14px; text-align: center; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{t.get("header", "You're Invited!")}</h1>
+    </div>
+    <div class="container">
+        <p>{t.get("greeting", f"Hi {first_name},")}</p>
+        <p>{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
+        {topic_html}
+        {message_html}
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{accept_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #2D4A47; color: #ffffff !important;">{t.get("accept_button", "Accept Invitation")}</a>
+            <a href="{decline_link}" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 8px; margin: 10px 5px; font-weight: 600; background: #e5e7eb; color: #374151;">{t.get("decline_button", "Decline")}</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">{t.get("link_fallback", "Or copy and paste this link into your browser:")}</p>
+        <p style="word-break: break-all; color: #2D4A47; font-size: 14px;">{accept_link}</p>
+        {expiry_html}
+        <div class="footer">
+            <p>{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+            text_content = f"""
+{t.get("header", "You're Invited!")}
+
+{t.get("greeting", f"Hi {first_name},")}
+
+{t.get("body", f"You've been invited to join {pool_name}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}
+
+{t.get("accept_button", "Accept Invitation")}: {accept_link}
+
+{t.get("decline_button", "Decline")}: {decline_link}
+
+{t.get("sign_off", "Best regards,")}
+{self._team_name}
+"""
+
+            emails.append({
+                "to": email,
+                "subject": t.get("subject", f"You're invited to join {pool_name}"),
+                "html": html_content,
+                "text": text_content,
+            })
+
+        return await self._send_resend_batch(emails)

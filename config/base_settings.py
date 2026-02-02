@@ -91,6 +91,17 @@ class BaseAppSettings(BaseSettings):
     SUPPORTED_LANGUAGES: str = "en,sv"  # Comma-separated
 
     # ==========================================================================
+    # Email Settings (env-specific, fixed values in config/email_config.py)
+    # ==========================================================================
+    EMAIL_MODE: str = "console"  # "console", "smtp", or "resend"
+    RESEND_API_KEY: Optional[str] = None
+    EMAIL_FROM_ADDRESS: str = "noreply@example.com"
+    EMAIL_FROM_NAME: str = "Human First AI"
+    EMAIL_TEAM_NAME: str = "The Human First AI Team"
+    APP_URL: str = "http://localhost:3000"
+    API_URL: str = "http://localhost:8000"
+
+    # ==========================================================================
     # Pydantic Settings Configuration
     # ==========================================================================
     model_config = SettingsConfigDict(
