@@ -24,7 +24,7 @@
     "subject": "Du är inbjuden att gå med i {{pool_name}}",
     "header": "Du är Inbjuden!",
     "greeting": "Hej {{name}},",
-    "body": "Du har blivit inbjuden att gå med i {{pool_name}}, en ledarskapscirkel där du kommer att få kontakt med kollegor för meningsfulla samtal och ömsesidigt stöd.",
+    "body": "Du har blivit inbjuden att gå med i {{pool_name}}, där du kommer att få kontakt med kollegor för meningsfulla samtal och ömsesidigt stöd.",
     "topic_label": "Ämne:",
     "accept_button": "Acceptera Inbjudan",
     "decline_button": "Avböj",
