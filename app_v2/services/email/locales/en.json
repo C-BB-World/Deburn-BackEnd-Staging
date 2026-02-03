@@ -24,7 +24,7 @@
     "subject": "You're invited to join {{pool_name}}",
     "header": "You're Invited!",
     "greeting": "Hi {{name}},",
-    "body": "You've been invited to join {{pool_name}}, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.",
+    "body": "You've been invited to join {{pool_name}}, where you'll connect with peers for meaningful conversations and mutual support.",
     "topic_label": "Topic:",
     "accept_button": "Accept Invitation",
     "decline_button": "Decline",
