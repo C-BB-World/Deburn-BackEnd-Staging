@@ -1102,7 +1102,7 @@ class EmailService:
                     <tr>
                         <td style="padding: 40px 30px;">
                             <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {first_name},")}</p>
-                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, a leadership circle where you'll connect with peers for meaningful conversations and mutual support.")}</p>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("body", f"You've been invited to join <strong>{pool_name}</strong>, where you'll connect with peers for meaningful conversations and mutual support.")}</p>
                             {topic_html}
                             {message_html}
 
