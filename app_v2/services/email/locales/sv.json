@@ -1,0 +1,56 @@
+{
+  "meeting_scheduled": {
+    "subject": "Human First AI Möte Inbokat: {{title}}",
+    "header": "Möte Inbokat",
+    "greeting": "Hej {{name}},",
+    "body": "Ett nytt Think Tank-möte har bokats för din grupp.",
+    "topic_label": "Diskussionsämne",
+    "when_label": "När",
+    "button": "Gå med i mötet",
+    "closing": "Vi ser fram emot att träffa dig där.",
+    "sign_off": "Vänliga hälsningar,"
+  },
+  "verification": {
+    "subject": "Verifiera din e-postadress",
+    "header": "Verifiera din e-post",
+    "greeting": "Hej {{name}},",
+    "body": "Tack för att du registrerade dig! Verifiera din e-postadress genom att klicka på knappen nedan:",
+    "button": "Verifiera E-post",
+    "link_fallback": "Eller kopiera och klistra in denna länk i din webbläsare:",
+    "ignore_notice": "Om du inte skapade ett konto kan du ignorera detta meddelande.",
+    "sign_off": "Vänliga hälsningar,"
+  },
+  "circle_invitation": {
+    "subject": "Du är inbjuden att gå med i {{pool_name}}",
+    "header": "Du är Inbjuden!",
+    "greeting": "Hej {{name}},",
+    "body": "Du har blivit inbjuden att gå med i {{pool_name}}, där du kommer att få kontakt med kollegor för meningsfulla samtal och ömsesidigt stöd.",
+    "topic_label": "Ämne:",
+    "accept_button": "Acceptera Inbjudan",
+    "decline_button": "Avböj",
+    "link_fallback": "Eller kopiera och klistra in denna länk i din webbläsare:",
+    "expiry_notice": "Denna inbjudan går ut den {{expires_at}}.",
+    "sign_off": "Vänliga hälsningar,"
+  },
+  "member_moved": {
+    "subject": "Du har flyttats till {{to_group}}",
+    "header": "Gruppändring",
+    "greeting": "Hej {{name}},",
+    "body": "Du har flyttats till en ny grupp i {{pool_name}}.",
+    "previous_label": "Tidigare Grupp:",
+    "new_label": "Ny Grupp:",
+    "info": "Dina nya gruppmedlemmar ser fram emot att få kontakt med dig. Besök din circles-sida för att se din nya grupp och boka möten.",
+    "button": "Visa Dina Circles",
+    "sign_off": "Vänliga hälsningar,"
+  },
+  "password_reset": {
+    "subject": "Återställ ditt lösenord",
+    "header": "Återställ ditt lösenord",
+    "greeting": "Hej {{name}},",
+    "body": "Vi har fått en begäran om att återställa ditt lösenord. Klicka på knappen nedan för att skapa ett nytt lösenord:",
+    "button": "Återställ Lösenord",
+    "link_fallback": "Eller kopiera och klistra in denna länk i din webbläsare:",
+    "ignore_notice": "Om du inte begärde en lösenordsåterställning kan du ignorera detta meddelande.",
+    "sign_off": "Vänliga hälsningar,"
+  }
+}

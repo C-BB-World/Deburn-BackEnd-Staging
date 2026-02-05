@@ -26,7 +26,7 @@ from common.utils import (
     ValidationException,
     validate_password,
 )
-from common.config import BaseAppSettings
+from config import BaseAppSettings
 
 __all__ = [
     # Database
