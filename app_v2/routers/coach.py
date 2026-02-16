@@ -126,13 +126,22 @@ async def send_message(
                 language=body.language,
             ).__aiter__()
 
+            pending_next = None
+
             while True:
-                try:
-                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=15)
-                except asyncio.TimeoutError:
-                    # Send keepalive comment to prevent proxy timeout
+                if pending_next is None:
+                    pending_next = asyncio.ensure_future(stream.__anext__())
+
+                done, _ = await asyncio.wait({pending_next}, timeout=15)
+
+                if not done:
+                    # Timeout — send keepalive, keep waiting for same chunk
                     yield ": keepalive\n\n"
                     continue
+
+                try:
+                    chunk = pending_next.result()
+                    pending_next = None
                 except StopAsyncIteration:
                     break
 
