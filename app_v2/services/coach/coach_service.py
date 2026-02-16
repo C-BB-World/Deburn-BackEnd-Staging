@@ -132,11 +132,11 @@ class CoachService:
         Raises:
             ValidationException: Daily exchange limit exceeded
         """
-        if not await self._check_daily_limit(user_id):
-            raise ValidationException(
-                message="Daily exchange limit exceeded",
-                code="RATE_LIMIT_EXCEEDED"
-            )
+        # if not await self._check_daily_limit(user_id):
+        #     raise ValidationException(
+        #         message="Daily exchange limit exceeded",
+        #         code="RATE_LIMIT_EXCEEDED"
+        #     )
 
         safety_result = self._safety_checker.check(message)
 
