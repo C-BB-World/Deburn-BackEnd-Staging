@@ -7,7 +7,7 @@ Provides endpoints for coaching conversations and commitments.
 import logging
 from typing import Annotated, Optional, List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 import json
 
@@ -20,10 +20,13 @@ from app_v2.dependencies import (
     get_commitment_service,
     get_pattern_detector,
     get_tts_service,
+    get_stt_service,
     get_hub_db,
     get_memory_encryption_service,
     get_translation_service,
 )
+from app_v2.services.media.stt_service import STTService
+from common.utils.responses import success_response
 from app_v2.services.media.tts_service import TTSService
 from app_v2.services.coach.coach_service import CoachService
 from app_v2.services.coach.commitment_service import CommitmentService
@@ -347,6 +350,32 @@ async def text_to_speech(
             "Cache-Control": "private, max-age=3600",
         }
     )
+
+
+@router.post("/transcribe")
+async def transcribe_audio(
+    file: UploadFile = File(..., description="Audio file to transcribe"),
+    language: str = Form(default="en"),
+    user: Annotated[dict, Depends(require_auth)] = None,
+    stt_service: Annotated[STTService, Depends(get_stt_service)] = None,
+):
+    """
+    Transcribe audio to text using Whisper.
+
+    Accepts audio file via multipart/form-data.
+    Supported formats: webm, mp4, mp3, wav, m4a, ogg, flac.
+    Max file size: 25MB.
+    """
+    audio_bytes = await file.read()
+    filename = file.filename or "recording.webm"
+
+    transcript = await stt_service.transcribe(
+        audio_bytes=audio_bytes,
+        filename=filename,
+        language=language,
+    )
+
+    return success_response(data={"text": transcript})
 
 
 @router.post("/conversations/translate", response_model=TranslateConversationResponse)

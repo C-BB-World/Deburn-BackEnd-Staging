@@ -100,6 +100,7 @@ from app_v2.services.progress.insight_engine import InsightEngine
 # Media services
 from app_v2.services.media.tts_service import TTSService
 from app_v2.services.media.image_service import ImageService
+from app_v2.services.media.stt_service import STTService
 
 # Organization services
 from app_v2.services.organization.organization_service import OrganizationService
@@ -189,6 +190,7 @@ _insight_engine: Optional[InsightEngine] = None
 # Media
 _tts_service: Optional[TTSService] = None
 _image_service: Optional[ImageService] = None
+_stt_service: Optional[STTService] = None
 
 # Organization
 _organization_service: Optional[OrganizationService] = None
@@ -491,10 +493,11 @@ def init_media_services(
     image_config: Optional[Dict[str, Any]] = None
 ) -> None:
     """Initialize media services."""
-    global _tts_service, _image_service
+    global _tts_service, _image_service, _stt_service
 
     _tts_service = TTSService(db=db, config=tts_config)
     _image_service = ImageService(db=db, config=image_config)
+    _stt_service = STTService()
 
 
 def init_organization_services(db: AsyncIOMotorDatabase) -> None:
@@ -976,6 +979,13 @@ def get_image_service() -> ImageService:
     if _image_service is None:
         raise RuntimeError("Media services not initialized.")
     return _image_service
+
+
+def get_stt_service() -> STTService:
+    """Get STT service instance."""
+    if _stt_service is None:
+        raise RuntimeError("Media services not initialized.")
+    return _stt_service
 
 
 # ─────────────────────────────────────────────────────────────────
