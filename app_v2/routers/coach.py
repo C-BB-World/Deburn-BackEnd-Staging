@@ -4,6 +4,7 @@ FastAPI router for AI Coaching system endpoints.
 Provides endpoints for coaching conversations and commitments.
 """
 
+import asyncio
 import logging
 from typing import Annotated, Optional, List
 
@@ -116,52 +117,83 @@ async def send_message(
         commitment_info = None
         conversation_id = conversation["conversationId"]
 
-        # Step 3: Stream AI response (CoachService handles pure AI logic)
-        async for chunk in coach_service.chat(
-            user_id=user_id,
-            message=body.message,
-            conversation_history=conversation.get("messages", []),
-            language=body.language,
-        ):
-            # Collect data for persistence
-            if chunk.type == "text":
-                full_response += chunk.content
-            elif chunk.type == "actions":
-                actions = chunk.content or []
-            elif chunk.type == "metadata":
-                topics = chunk.content.get("topics", [])
-                commitment_info = chunk.content.get("commitment")
-                # Add conversationId to metadata for frontend
-                chunk.content["conversationId"] = conversation_id
+        try:
+            # Step 3: Stream AI response with keepalive pings
+            stream = coach_service.chat(
+                user_id=user_id,
+                message=body.message,
+                conversation_history=conversation.get("messages", []),
+                language=body.language,
+            ).__aiter__()
 
-            data = json.dumps({
-                "type": chunk.type,
-                "content": chunk.content
-            })
-            yield f"data: {data}\n\n"
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=15)
+                except asyncio.TimeoutError:
+                    # Send keepalive comment to prevent proxy timeout
+                    yield ": keepalive\n\n"
+                    continue
+                except StopAsyncIteration:
+                    break
 
-        # Step 4: Save assistant message (encrypted) with actions
-        await conversation_pipeline.save_message(
-            db=hub_db,
-            encryption_service=encryption_service,
-            conversation_id=conversation_id,
-            role="assistant",
-            content=full_response,
-            metadata={"topics": topics, "commitment": commitment_info, "actions": actions},
-            language=body.language
-        )
+                # Collect data for persistence
+                if chunk.type == "text":
+                    full_response += chunk.content
+                elif chunk.type == "actions":
+                    actions = chunk.content or []
+                elif chunk.type == "metadata":
+                    topics = chunk.content.get("topics", [])
+                    commitment_info = chunk.content.get("commitment")
+                    # Add conversationId to metadata for frontend
+                    chunk.content["conversationId"] = conversation_id
 
-        # Step 5: Update topics
-        if topics:
-            await conversation_pipeline.update_topics(
+                data = json.dumps({
+                    "type": chunk.type,
+                    "content": chunk.content
+                })
+                yield f"data: {data}\n\n"
+
+            # Step 4: Save assistant message (encrypted) with actions
+            await conversation_pipeline.save_message(
                 db=hub_db,
+                encryption_service=encryption_service,
                 conversation_id=conversation_id,
-                topics=topics
+                role="assistant",
+                content=full_response,
+                metadata={"topics": topics, "commitment": commitment_info, "actions": actions},
+                language=body.language
             )
+
+            # Step 5: Update topics
+            if topics:
+                await conversation_pipeline.update_topics(
+                    db=hub_db,
+                    conversation_id=conversation_id,
+                    topics=topics
+                )
+
+        except Exception as e:
+            # Client disconnected mid-stream — save partial response
+            logger.warning(f"Stream interrupted for {conversation_id}: {type(e).__name__}")
+
+            if full_response:
+                await conversation_pipeline.save_message(
+                    db=hub_db,
+                    encryption_service=encryption_service,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=full_response,
+                    metadata={"topics": topics, "commitment": commitment_info, "actions": actions, "partial": True},
+                    language=body.language
+                )
 
     return StreamingResponse(
         generate(),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
