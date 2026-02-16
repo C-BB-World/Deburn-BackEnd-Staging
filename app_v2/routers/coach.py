@@ -182,8 +182,9 @@ async def send_message(
                 )
 
         except Exception as e:
-            # Client disconnected mid-stream — save partial response
-            logger.warning(f"Stream interrupted for {conversation_id}: {type(e).__name__}")
+            import traceback
+            print(f"Stream interrupted for {conversation_id}: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
             if full_response:
                 await conversation_pipeline.save_message(
