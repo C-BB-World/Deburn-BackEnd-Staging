@@ -169,6 +169,10 @@ class InternalServerException(APIException):
         super().__init__(500, message, code, details)
 
 
+# Alias for InternalServerException
+ServerException = InternalServerException
+
+
 class ServiceUnavailableException(APIException):
     """503 Service Unavailable - Service temporarily unavailable."""
 
