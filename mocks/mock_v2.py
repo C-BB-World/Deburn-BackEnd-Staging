@@ -190,6 +190,10 @@ class VoiceRequest(BaseModel):
     voice: str = "alloy"
 
 
+class RenameConversationRequest(BaseModel):
+    title: str
+
+
 class CompleteCommitmentRequest(BaseModel):
     reflectionNotes: Optional[str] = None
     helpfulnessRating: Optional[int] = None
@@ -421,7 +425,101 @@ MOCK_USER_AVAILABILITY = [
     {"dayOfWeek": "friday", "startTime": "09:00", "endTime": "11:00"},
 ]
 
-MOCK_CONVERSATIONS = {}
+MOCK_CONVERSATIONS: dict[str, dict] = {}
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def seed_conversations():
+    """Pre-populate with sample conversations so the sidebar isn't empty."""
+    now = datetime.now(timezone.utc)
+
+    conv1_id = f"conv_{secrets.token_hex(8)}"
+    MOCK_CONVERSATIONS[conv1_id] = {
+        "id": conv1_id,
+        "title": "Leadership skills development",
+        "status": "active",
+        "createdAt": (now - timedelta(days=3)).isoformat(),
+        "lastMessageAt": (now - timedelta(days=1)).isoformat(),
+        "messages": [
+            {"role": "user", "content": "I want to work on my leadership skills"},
+            {
+                "role": "assistant",
+                "content": (
+                    "That's a great goal! Leadership development is a journey. "
+                    "Let's start by understanding where you are. What specific aspect "
+                    "of leadership would you like to focus on — communication, "
+                    "decision-making, team motivation, or something else?"
+                ),
+                "actions": [],
+            },
+            {"role": "user", "content": "I think communication is my weakest area"},
+            {
+                "role": "assistant",
+                "content": (
+                    "Communication is one of the most impactful leadership skills to develop. "
+                    "Here are some areas we could explore:\n\n"
+                    "1. **Active listening** — truly hearing your team\n"
+                    "2. **Giving feedback** — constructive and timely\n"
+                    "3. **Presenting ideas** — clarity and confidence\n\n"
+                    "Which of these resonates most with you?"
+                ),
+                "actions": [],
+            },
+        ],
+    }
+
+    conv2_id = f"conv_{secrets.token_hex(8)}"
+    MOCK_CONVERSATIONS[conv2_id] = {
+        "id": conv2_id,
+        "title": "Stress management strategies",
+        "status": "active",
+        "createdAt": (now - timedelta(days=7)).isoformat(),
+        "lastMessageAt": (now - timedelta(days=2)).isoformat(),
+        "messages": [
+            {"role": "user", "content": "My stress has been building up lately"},
+            {
+                "role": "assistant",
+                "content": (
+                    "I'm sorry to hear that. Stress can really impact both your well-being "
+                    "and your effectiveness as a leader. Let's work through this together.\n\n"
+                    "First, can you tell me — is the stress mainly from work responsibilities, "
+                    "team dynamics, personal factors, or a combination?"
+                ),
+                "actions": [],
+            },
+        ],
+    }
+
+    conv3_id = f"conv_{secrets.token_hex(8)}"
+    MOCK_CONVERSATIONS[conv3_id] = {
+        "id": conv3_id,
+        "title": "Team building ideas",
+        "status": "active",
+        "createdAt": (now - timedelta(days=14)).isoformat(),
+        "lastMessageAt": (now - timedelta(days=5)).isoformat(),
+        "messages": [
+            {"role": "user", "content": "I need help with team building activities"},
+            {
+                "role": "assistant",
+                "content": (
+                    "Team building is essential for creating trust and collaboration. "
+                    "Here are some approaches depending on your team's situation:\n\n"
+                    "- **Remote teams**: Virtual coffee chats, online game sessions\n"
+                    "- **In-office teams**: Lunch-and-learn sessions, creative workshops\n"
+                    "- **Hybrid teams**: Quarterly off-sites, pair programming\n\n"
+                    "What does your team setup look like?"
+                ),
+                "actions": [],
+            },
+        ],
+    }
+
+
+seed_conversations()
+
 
 MOCK_COMMITMENTS = [
     {
@@ -1403,11 +1501,51 @@ async def handle_calendar_webhook():
 
 @app.post("/api/coach/chat")
 async def coach_chat(request: SendMessageRequest, authorization: Optional[str] = Header(None)):
-    """Streaming coach chat endpoint."""
+    """Streaming coach chat endpoint — now stateful."""
     require_auth(authorization)
 
     lang = request.language if request.language in ["en", "sv"] else "en"
-    conversation_id = request.conversationId or f"conv_{secrets.token_hex(8)}"
+    conversation_id = request.conversationId
+
+    # Create new conversation if needed
+    if not conversation_id or conversation_id not in MOCK_CONVERSATIONS:
+        conversation_id = f"conv_{secrets.token_hex(8)}"
+        title = request.message[:50].strip() or "New conversation"
+        MOCK_CONVERSATIONS[conversation_id] = {
+            "id": conversation_id,
+            "title": title,
+            "status": "active",
+            "createdAt": _now_iso(),
+            "lastMessageAt": _now_iso(),
+            "messages": [],
+        }
+
+    conv = MOCK_CONVERSATIONS[conversation_id]
+
+    # Append user message
+    conv["messages"].append({"role": "user", "content": request.message})
+
+    # Build response text
+    if lang == "sv":
+        response_text = (
+            "Det är en utmärkt fråga om ledarskap. "
+            "Att utveckla ditt team kräver både tålamod och strategi. "
+            "Låt mig dela några tankar som kan hjälpa dig. "
+            "Först, överväg att ha regelbundna en-till-en-samtal med varje teammedlem. "
+            "Detta bygger förtroende och ger dig insikt i deras utmaningar."
+        )
+    else:
+        response_text = (
+            "That's an excellent question about leadership. "
+            "Developing your team requires both patience and strategy. "
+            "Let me share some thoughts that might help you. "
+            "First, consider having regular one-on-one conversations with each team member. "
+            "This builds trust and gives you insight into their challenges."
+        )
+
+    # Append assistant message
+    conv["messages"].append({"role": "assistant", "content": response_text, "actions": []})
+    conv["lastMessageAt"] = _now_iso()
 
     async def generate_stream():
         # Send metadata first
@@ -1416,23 +1554,6 @@ async def coach_chat(request: SendMessageRequest, authorization: Optional[str] =
         await asyncio.sleep(0.05)
 
         # Stream text chunks
-        if lang == "sv":
-            response_text = (
-                "Det \u00e4r en utm\u00e4rkt fr\u00e5ga om ledarskap. "
-                "Att utveckla ditt team kr\u00e4ver b\u00e5de t\u00e5lamod och strategi. "
-                "L\u00e5t mig dela n\u00e5gra tankar som kan hj\u00e4lpa dig. "
-                "F\u00f6rst, \u00f6verv\u00e4g att ha regelbundna en-till-en-samtal med varje teammedlem. "
-                "Detta bygger f\u00f6rtroende och ger dig insikt i deras utmaningar."
-            )
-        else:
-            response_text = (
-                "That's an excellent question about leadership. "
-                "Developing your team requires both patience and strategy. "
-                "Let me share some thoughts that might help you. "
-                "First, consider having regular one-on-one conversations with each team member. "
-                "This builds trust and gives you insight into their challenges."
-            )
-
         words = response_text.split()
         chunk_size = 3
 
@@ -1451,12 +1572,12 @@ async def coach_chat(request: SendMessageRequest, authorization: Optional[str] =
                 {
                     "type": "exercise",
                     "id": "breathing",
-                    "label": "Prova en lugnande \u00f6vning" if lang == "sv" else "Try a Calming Exercise",
+                    "label": "Prova en lugnande övning" if lang == "sv" else "Try a Calming Exercise",
                 },
                 {
                     "type": "module",
                     "id": "delegation",
-                    "label": "L\u00e4r dig: Delegera r\u00e4tt" if lang == "sv" else "Learn: Delegation Done Right",
+                    "label": "Lär dig: Delegera rätt" if lang == "sv" else "Learn: Delegation Done Right",
                     "duration": "5 min",
                 },
             ],
@@ -1519,46 +1640,87 @@ async def get_coach_starters(
 
 
 @app.get("/api/coach/conversations")
-async def get_recent_conversations(limit: int = 10, authorization: Optional[str] = Header(None)):
+async def get_recent_conversations(
+    skip: int = 0,
+    limit: int = 20,
+    authorization: Optional[str] = Header(None),
+):
     require_auth(authorization)
-    return success_response({
-        "conversations": [
-            {
-                "id": "conv_123",
-                "conversationId": "conv_123",
-                "preview": "We discussed leadership challenges...",
-                "lastMessageAt": "2026-01-18T14:30:00Z",
-                "messageCount": 12,
-                "topics": ["leadership", "delegation"],
-            },
-            {
-                "id": "conv_456",
-                "conversationId": "conv_456",
-                "preview": "Stress management techniques...",
-                "lastMessageAt": "2026-01-17T10:00:00Z",
-                "messageCount": 8,
-                "topics": ["stress", "mindfulness"],
-            },
-        ]
-    })
+
+    # Sort by lastMessageAt descending
+    all_convs = sorted(
+        MOCK_CONVERSATIONS.values(),
+        key=lambda c: c["lastMessageAt"],
+        reverse=True,
+    )
+    page = all_convs[skip : skip + limit]
+
+    summaries = []
+    for c in page:
+        summaries.append({
+            "id": c["id"],
+            "conversationId": c["id"],
+            "title": c["title"],
+            "messageCount": len(c["messages"]),
+            "topics": [],
+            "status": c["status"],
+            "lastMessageAt": c["lastMessageAt"],
+            "createdAt": c["createdAt"],
+        })
+
+    return {
+        "success": True,
+        "conversations": summaries,
+        "total": len(all_convs),
+        "hasMore": skip + limit < len(all_convs),
+    }
 
 
 @app.get("/api/coach/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str, authorization: Optional[str] = Header(None)):
     require_auth(authorization)
+    conv = MOCK_CONVERSATIONS.get(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    messages = [
+        {"role": m["role"], "content": m["content"], "actions": m.get("actions", [])}
+        for m in conv["messages"]
+    ]
+
     return success_response({
-        "id": conversation_id,
-        "conversationId": conversation_id,
-        "userId": "usr_mock123",
-        "messages": [
-            {"role": "user", "content": "How can I be a better leader?", "timestamp": "2026-01-18T14:00:00Z"},
-            {"role": "assistant", "content": "That's a great question! Let's explore what leadership means to you...", "timestamp": "2026-01-18T14:00:30Z"},
-        ],
-        "topics": ["leadership"],
-        "status": "active",
-        "lastMessageAt": "2026-01-18T14:30:00Z",
-        "createdAt": "2026-01-18T14:00:00Z",
+        "conversation": {
+            "id": conv["id"],
+            "title": conv["title"],
+            "status": conv["status"],
+            "createdAt": conv["createdAt"],
+            "lastMessageAt": conv["lastMessageAt"],
+        },
+        "messages": messages,
     })
+
+
+@app.delete("/api/coach/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    if conversation_id in MOCK_CONVERSATIONS:
+        del MOCK_CONVERSATIONS[conversation_id]
+    return success_response({"deleted": True})
+
+
+@app.patch("/api/coach/conversations/{conversation_id}")
+async def rename_conversation(
+    conversation_id: str,
+    request: RenameConversationRequest,
+    authorization: Optional[str] = Header(None),
+):
+    require_auth(authorization)
+    conv = MOCK_CONVERSATIONS.get(conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    conv["title"] = request.title.strip()
+    return success_response({"id": conversation_id, "title": conv["title"]})
 
 
 @app.get("/api/coach/commitments")
@@ -2375,18 +2537,21 @@ async def remove_avatar(request: RemoveAvatarRequest, authorization: Optional[st
 
 @app.get("/api/conversations")
 async def get_conversation_history(authorization: Optional[str] = Header(None)):
+    """Backwards-compatible endpoint — returns the most recent conversation."""
     require_auth(authorization)
+
+    if not MOCK_CONVERSATIONS:
+        return success_response({"messages": [], "conversation": None})
+
+    latest = max(MOCK_CONVERSATIONS.values(), key=lambda c: c["lastMessageAt"])
+    messages = [
+        {"role": m["role"], "content": m["content"], "actions": m.get("actions", [])}
+        for m in latest["messages"]
+    ]
+
     return success_response({
-        "conversation": {
-            "id": "conv_current",
-            "messageCount": 5,
-            "lastMessageAt": "2026-01-19T10:00:00Z",
-            "createdAt": "2026-01-19T09:00:00Z",
-        },
-        "messages": [
-            {"role": "user", "content": "Hello Eve!", "timestamp": "2026-01-19T09:00:00Z"},
-            {"role": "assistant", "content": "Hello! How can I help you today?", "timestamp": "2026-01-19T09:00:30Z"},
-        ],
+        "conversation": {"id": latest["id"]},
+        "messages": messages,
     })
 
 
@@ -2399,7 +2564,9 @@ async def save_conversation(authorization: Optional[str] = Header(None)):
 @app.delete("/api/conversations")
 async def delete_conversation_history(authorization: Optional[str] = Header(None)):
     require_auth(authorization)
-    return success_response({"deleted": True, "deletedCount": 5})
+    count = len(MOCK_CONVERSATIONS)
+    MOCK_CONVERSATIONS.clear()
+    return success_response({"deleted": True, "deletedCount": count})
 
 
 # =============================================================================
