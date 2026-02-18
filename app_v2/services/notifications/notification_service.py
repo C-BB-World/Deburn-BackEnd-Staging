@@ -33,8 +33,7 @@ class NotificationService:
         "group_assignment",
         "meeting_scheduled",
         "meeting_reminder",
-        "user_moved",
-        "group_message",
+        "user_moved"
     ]
 
     def __init__(self, db: AsyncIOMotorDatabase):

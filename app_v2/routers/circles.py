@@ -22,7 +22,6 @@ from app_v2.dependencies import (
     get_availability_service,
     get_main_db,
     get_notification_service,
-    get_memory_encryption_service,
 )
 from app_v2.pipelines.availability import get_group_availability_for_scheduling
 from app_v2.schemas.circles import (
@@ -35,14 +34,8 @@ from app_v2.schemas.circles import (
     AddMemberRequest,
     CreateGroupRequest,
     UpdateGroupRequest,
-    SendGroupMessageRequest,
 )
 from app_v2.services.email.email_service import EmailService
-from app_v2.services.circles.message_service import GroupMessageService
-from app_v2.pipelines.group_messages import (
-    send_group_message as send_group_message_pipeline,
-    list_group_messages as list_group_messages_pipeline,
-)
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
@@ -346,70 +339,6 @@ async def schedule_meeting(
         "meetingLink": meeting.get("meetingLink"),
         "date": meeting.get("scheduledAt", ""),
     })
-
-
-# ── Group Messages ──────────────────────────────────────────────
-
-
-@router.get("/groups/{group_id}/messages")
-async def get_group_messages(
-    group_id: str,
-    user: Annotated[dict, Depends(require_auth)],
-    limit: int = Query(default=50, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-):
-    """Get messages for a group."""
-    db = get_main_db()
-    try:
-        encryption_service = get_memory_encryption_service()
-    except RuntimeError:
-        encryption_service = None
-    message_service = GroupMessageService(db, encryption_service=encryption_service)
-    group_service = get_group_service()
-    user_id = str(user["_id"])
-
-    result = await list_group_messages_pipeline(
-        message_service=message_service,
-        group_service=group_service,
-        user_id=user_id,
-        group_id=group_id,
-        limit=limit,
-        offset=offset,
-    )
-
-    return success_response(result)
-
-
-@router.post("/groups/{group_id}/messages")
-async def post_group_message(
-    group_id: str,
-    body: SendGroupMessageRequest,
-    user: Annotated[dict, Depends(require_auth)],
-):
-    """Send a message to a group."""
-    db = get_main_db()
-    try:
-        encryption_service = get_memory_encryption_service()
-    except RuntimeError:
-        encryption_service = None
-    message_service = GroupMessageService(db, encryption_service=encryption_service)
-    group_service = get_group_service()
-    notification_service = get_notification_service()
-    email_service = EmailService()
-    user_id = str(user["_id"])
-
-    result = await send_group_message_pipeline(
-        message_service=message_service,
-        group_service=group_service,
-        notification_service=notification_service,
-        email_service=email_service,
-        db=db,
-        user_id=user_id,
-        group_id=group_id,
-        content=body.content,
-    )
-
-    return success_response(result)
 
 
 @router.get("/invitations/{token}")

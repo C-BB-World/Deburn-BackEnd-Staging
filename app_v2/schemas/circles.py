@@ -92,7 +92,3 @@ class CreateGroupRequest(BaseModel):
 
 class UpdateGroupRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-
-
-class SendGroupMessageRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=500)
