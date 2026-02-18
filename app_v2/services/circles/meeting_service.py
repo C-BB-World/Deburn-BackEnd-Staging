@@ -127,9 +127,9 @@ class MeetingService:
 
             # Determine status: if we have available_members list, check if user is in it
             if available_names_set is not None:
-                status = "pending" if member_name in available_names_set else "declined"
+                status = "invited" if member_name in available_names_set else "declined"
             else:
-                status = "pending"
+                status = "invited"
 
             attendance.append({
                 "userId": user_id,
