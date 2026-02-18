@@ -26,6 +26,12 @@ class ScheduleMeetingRequest(BaseModel):
     meetingLink: Optional[str] = None
     timezone: Optional[str] = None
     availableMembers: Optional[List[str]] = None  # Names of members who can attend
+    recurrence: bool = False
+    frequency: Optional[str] = None  # "weekly" | "biweekly" | "monthly"
+
+
+class SkipOccurrenceRequest(BaseModel):
+    date: str = Field(..., description="Date to skip in YYYY-MM-DD format")
 
 
 class UpdateAttendanceRequest(BaseModel):

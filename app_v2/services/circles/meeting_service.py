@@ -56,7 +56,9 @@ class MeetingService:
         meeting_link: Optional[str] = None,
         meeting_timezone: str = "Europe/Stockholm",
         create_calendar_events: bool = True,
-        available_members: Optional[List[str]] = None
+        available_members: Optional[List[str]] = None,
+        recurrence: bool = False,
+        frequency: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Schedule a meeting for a group.
@@ -149,6 +151,9 @@ class MeetingService:
             "status": "scheduled",
             "scheduledBy": ObjectId(scheduled_by),
             "calendarEvents": [],
+            "recurrence": recurrence,
+            "frequency": frequency if recurrence else None,
+            "skippedOccurrences": [] if recurrence else None,
             "attendance": attendance,
             "notes": None,
             "reminder24hSent": False,
@@ -410,6 +415,112 @@ class MeetingService:
             "reminder24h": len(meetings_24h),
             "reminder1h": len(meetings_1h)
         }
+
+    def compute_upcoming_occurrences(
+        self,
+        meeting_doc: Dict[str, Any],
+        user_id: str,
+        count: int = 2,
+    ) -> List[datetime]:
+        """
+        Compute upcoming occurrences for a recurring meeting.
+
+        Pure computation — no DB calls. Returns up to `count` future
+        datetimes, filtering out dates the user has skipped.
+
+        Non-recurring meetings (or old docs without the field) return [].
+        """
+        if not meeting_doc.get("recurrence"):
+            return []
+
+        frequency = meeting_doc.get("frequency", "weekly")
+        anchor = meeting_doc["scheduledAt"]
+        if isinstance(anchor, str):
+            anchor = datetime.fromisoformat(anchor.replace("Z", "+00:00"))
+        if anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+
+        # Build set of dates this user has skipped
+        skipped = meeting_doc.get("skippedOccurrences") or []
+        user_skipped_dates = {
+            s["date"] for s in skipped if str(s.get("userId")) == user_id
+        }
+
+        # Determine interval
+        if frequency == "weekly":
+            delta = timedelta(weeks=1)
+        elif frequency == "biweekly":
+            delta = timedelta(weeks=2)
+        elif frequency == "monthly":
+            delta = None  # handled separately
+        else:
+            delta = timedelta(weeks=1)
+
+        now = datetime.now(timezone.utc)
+        results = []
+        candidate = anchor
+
+        # Advance candidate past now, then collect `count` occurrences
+        # (check up to 52 iterations to avoid infinite loop)
+        for _ in range(52):
+            if candidate > now:
+                date_str = candidate.strftime("%Y-%m-%d")
+                if date_str not in user_skipped_dates:
+                    results.append(candidate)
+                    if len(results) >= count:
+                        break
+
+            if delta:
+                candidate = candidate + delta
+            else:
+                # Monthly: advance by one month
+                month = candidate.month % 12 + 1
+                year = candidate.year + (1 if candidate.month == 12 else 0)
+                try:
+                    candidate = candidate.replace(year=year, month=month)
+                except ValueError:
+                    # Handle months with fewer days (e.g., Jan 31 -> Feb 28)
+                    import calendar
+                    last_day = calendar.monthrange(year, month)[1]
+                    candidate = candidate.replace(year=year, month=month, day=min(candidate.day, last_day))
+
+        return results
+
+    async def skip_occurrence(
+        self,
+        meeting_id: str,
+        user_id: str,
+        date: str,
+    ) -> Dict[str, Any]:
+        """
+        Skip a single occurrence of a recurring meeting for a user.
+
+        Adds {userId, date} to skippedOccurrences on the meeting document.
+        """
+        meeting = await self.get_meeting(meeting_id)
+
+        if not meeting.get("recurrence"):
+            raise ValidationException(
+                message="Cannot skip occurrence on a non-recurring meeting",
+                code="NOT_RECURRING",
+            )
+
+        now = datetime.now(timezone.utc)
+
+        await self._meetings_collection.update_one(
+            {"_id": ObjectId(meeting_id)},
+            {
+                "$push": {
+                    "skippedOccurrences": {
+                        "userId": ObjectId(user_id),
+                        "date": date,
+                    }
+                },
+                "$set": {"updatedAt": now},
+            },
+        )
+
+        return await self.get_meeting(meeting_id)
 
     async def _user_has_access(self, group: Dict[str, Any], user_id: str) -> bool:
         """Check if user has access to schedule/modify meetings."""

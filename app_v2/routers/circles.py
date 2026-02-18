@@ -36,6 +36,7 @@ from app_v2.schemas.circles import (
     CreateGroupRequest,
     UpdateGroupRequest,
     SendGroupMessageRequest,
+    SkipOccurrenceRequest,
 )
 from app_v2.services.email.email_service import EmailService
 from app_v2.services.circles.message_service import GroupMessageService
@@ -85,7 +86,16 @@ async def get_my_groups(
                     "duration": meeting.get("duration", 60),
                     "meetingLink": meeting.get("meetingLink"),
                     "timezone": meeting.get("timezone", "UTC"),
+                    "recurrence": meeting.get("recurrence", False),
+                    "frequency": meeting.get("frequency"),
                 }
+                # For recurring meetings, add next occurrence
+                if meeting.get("recurrence"):
+                    occurrences = meeting_service.compute_upcoming_occurrences(
+                        meeting, user_id
+                    )
+                    if occurrences:
+                        next_meeting_data["nextOccurrence"] = occurrences[0].isoformat()
                 break  # Found the next meeting for this user
 
         raw_members = g.get("members", [])
@@ -221,20 +231,29 @@ async def get_group_meetings(
         if not user_attendance or user_attendance.get("status") != "declined":
             filtered_meetings.append(m)
 
-    return success_response({
-        "meetings": [
-            {
-                "id": str(m["_id"]),
-                "title": m.get("title", ""),
-                "scheduledAt": m.get("scheduledAt").isoformat() if m.get("scheduledAt") else None,
-                "duration": m.get("duration", 60),
-                "meetingLink": m.get("meetingLink"),
-                "status": m.get("status", "scheduled"),
-                "timezone": m.get("timezone", "UTC"),
-            }
-            for m in filtered_meetings
-        ]
-    })
+    user_id_str = str(user["_id"])
+    formatted_meetings = []
+    for m in filtered_meetings:
+        meeting_data = {
+            "id": str(m["_id"]),
+            "title": m.get("title", ""),
+            "scheduledAt": m.get("scheduledAt").isoformat() if m.get("scheduledAt") else None,
+            "duration": m.get("duration", 60),
+            "meetingLink": m.get("meetingLink"),
+            "status": m.get("status", "scheduled"),
+            "timezone": m.get("timezone", "UTC"),
+            "recurrence": m.get("recurrence", False),
+            "frequency": m.get("frequency"),
+        }
+        # For recurring meetings, compute upcoming occurrences
+        if m.get("recurrence"):
+            occurrences = meeting_service.compute_upcoming_occurrences(m, user_id_str)
+            meeting_data["upcomingOccurrences"] = [
+                dt.isoformat() for dt in occurrences
+            ]
+        formatted_meetings.append(meeting_data)
+
+    return success_response({"meetings": formatted_meetings})
 
 
 @router.get("/groups/{group_id}/common-availability")
@@ -275,7 +294,9 @@ async def schedule_meeting(
         duration=body.duration,
         meeting_link=body.meetingLink,
         meeting_timezone=body.timezone or "UTC",
-        available_members=body.availableMembers
+        available_members=body.availableMembers,
+        recurrence=body.recurrence,
+        frequency=body.frequency,
     )
 
     # Pipeline Step 2: Send emails to all group members
@@ -551,6 +572,24 @@ async def cancel_meeting(
     )
 
     return success_response({"message": "Meeting cancelled"})
+
+
+@router.post("/meetings/{meeting_id}/skip-occurrence")
+async def skip_meeting_occurrence(
+    meeting_id: str,
+    body: SkipOccurrenceRequest,
+    user: Annotated[dict, Depends(require_auth)],
+):
+    """Skip a single occurrence of a recurring meeting for the current user."""
+    meeting_service = get_meeting_service()
+
+    result = await meeting_service.skip_occurrence(
+        meeting_id=meeting_id,
+        user_id=str(user["_id"]),
+        date=body.date,
+    )
+
+    return success_response({"message": "Occurrence skipped"})
 
 
 @router.post("/meetings/{meeting_id}/attendance")
