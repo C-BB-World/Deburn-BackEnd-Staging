@@ -421,12 +421,12 @@ class MeetingService:
         meeting_doc: Dict[str, Any],
         user_id: str,
         count: int = 2,
-    ) -> List[datetime]:
+    ) -> List[Dict[str, Any]]:
         """
         Compute upcoming occurrences for a recurring meeting.
 
         Pure computation — no DB calls. Returns up to `count` future
-        datetimes, filtering out dates the user has skipped.
+        occurrences as {date: datetime, skipped: bool}.
 
         Non-recurring meetings (or old docs without the field) return [].
         """
@@ -465,10 +465,10 @@ class MeetingService:
         for _ in range(52):
             if candidate > now:
                 date_str = candidate.strftime("%Y-%m-%d")
-                if date_str not in user_skipped_dates:
-                    results.append(candidate)
-                    if len(results) >= count:
-                        break
+                is_skipped = date_str in user_skipped_dates
+                results.append({"date": candidate, "skipped": is_skipped})
+                if len(results) >= count:
+                    break
 
             if delta:
                 candidate = candidate + delta

@@ -201,17 +201,18 @@ class TestComputeUpcomingOccurrences:
 
         assert len(results) == 2
         now = datetime.now(timezone.utc)
-        for dt in results:
-            assert dt > now
+        for occ in results:
+            assert occ["date"] > now
+            assert occ["skipped"] is False
         # Should be 7 days apart
-        diff = results[1] - results[0]
+        diff = results[1]["date"] - results[0]["date"]
         assert diff == timedelta(weeks=1)
 
     def test_biweekly_returns_correct_interval(self, meeting_service, biweekly_meeting, user_id):
         results = meeting_service.compute_upcoming_occurrences(biweekly_meeting, user_id)
 
         assert len(results) == 2
-        diff = results[1] - results[0]
+        diff = results[1]["date"] - results[0]["date"]
         assert diff == timedelta(weeks=2)
 
     def test_monthly_returns_future_dates(self, meeting_service, monthly_meeting, user_id):
@@ -219,10 +220,10 @@ class TestComputeUpcomingOccurrences:
 
         assert len(results) == 2
         now = datetime.now(timezone.utc)
-        for dt in results:
-            assert dt > now
+        for occ in results:
+            assert occ["date"] > now
         # Roughly 28-31 days apart
-        diff = (results[1] - results[0]).days
+        diff = (results[1]["date"] - results[0]["date"]).days
         assert 28 <= diff <= 31
 
     def test_non_recurring_returns_empty(self, meeting_service, non_recurring_meeting, user_id):
@@ -233,10 +234,10 @@ class TestComputeUpcomingOccurrences:
         results = meeting_service.compute_upcoming_occurrences(old_meeting_no_field, user_id)
         assert results == []
 
-    def test_skipped_dates_excluded(self, meeting_service, recurring_meeting, user_id):
+    def test_skipped_dates_marked(self, meeting_service, recurring_meeting, user_id):
         # First get the upcoming dates
         all_dates = meeting_service.compute_upcoming_occurrences(recurring_meeting, user_id)
-        skip_date = all_dates[0].strftime("%Y-%m-%d")
+        skip_date = all_dates[0]["date"].strftime("%Y-%m-%d")
 
         # Add a skip for this user on that date
         recurring_meeting["skippedOccurrences"] = [
@@ -245,10 +246,12 @@ class TestComputeUpcomingOccurrences:
 
         results = meeting_service.compute_upcoming_occurrences(recurring_meeting, user_id)
 
-        result_dates = [r.strftime("%Y-%m-%d") for r in results]
-        assert skip_date not in result_dates
-        # Should still return 2 results (skips the first, picks up the next)
         assert len(results) == 2
+        # First result should be the skipped one, marked as skipped
+        assert results[0]["date"].strftime("%Y-%m-%d") == skip_date
+        assert results[0]["skipped"] is True
+        # Second result should not be skipped
+        assert results[1]["skipped"] is False
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -94,8 +94,12 @@ async def get_my_groups(
                     occurrences = meeting_service.compute_upcoming_occurrences(
                         meeting, user_id
                     )
-                    if occurrences:
-                        next_meeting_data["nextOccurrence"] = occurrences[0].isoformat()
+                    # Find first non-skipped occurrence for the card
+                    first_active = next(
+                        (o for o in occurrences if not o["skipped"]), None
+                    )
+                    if first_active:
+                        next_meeting_data["nextOccurrence"] = first_active["date"].isoformat()
                 break  # Found the next meeting for this user
 
         raw_members = g.get("members", [])
@@ -249,7 +253,8 @@ async def get_group_meetings(
         if m.get("recurrence"):
             occurrences = meeting_service.compute_upcoming_occurrences(m, user_id_str)
             meeting_data["upcomingOccurrences"] = [
-                dt.isoformat() for dt in occurrences
+                {"date": occ["date"].isoformat(), "skipped": occ["skipped"]}
+                for occ in occurrences
             ]
         formatted_meetings.append(meeting_data)
 
