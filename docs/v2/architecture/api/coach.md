@@ -4,7 +4,10 @@ AI coaching chat endpoints for streaming responses and conversation management.
 
 **Key Features:**
 - SSE streaming responses with actions
+- Multi-conversation support with sidebar (list, rename, delete)
 - Encrypted conversation persistence (AES-256-CBC)
+- Auto-generated conversation titles from first message
+- Conversation translation (EN/SV) with caching
 - Pipeline architecture for storage (SOLID principles)
 
 ---
@@ -104,9 +107,47 @@ Fetches conversation starter suggestions based on user wellbeing data.
 
 ---
 
+## GET /api/coach/conversations/list
+
+Fetches paginated conversation summaries for the sidebar. No message content or decryption — lightweight for fast loading.
+
+**Query Parameters:**
+- `skip` (number): Pagination offset (default: 0)
+- `limit` (number): Max conversations to return (default: 20, max: 50)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "conversations": [
+      {
+        "id": "abc123",
+        "conversationId": "conv_20260119_abc123",
+        "title": "Leadership skills development",
+        "messageCount": 5,
+        "topics": ["leadership"],
+        "status": "active",
+        "lastMessageAt": "2026-01-19T12:00:00Z",
+        "createdAt": "2026-01-19T10:00:00Z"
+      }
+    ],
+    "total": 15,
+    "hasMore": true
+  }
+}
+```
+
+**Notes:**
+- Sorted by `lastMessageAt` descending (most recent first)
+- Does not include message content — use `GET /conversations/{id}` to load full conversation
+- `title` is auto-generated from the first user message (first 50 chars) or set via rename
+
+---
+
 ## GET /api/coach/conversations
 
-Fetches user's recent conversations (decrypted).
+Fetches user's recent conversations with full messages (decrypted).
 
 **Query Parameters:**
 - `limit` (number): Max conversations to return (default: 10, max: 50)
@@ -121,6 +162,7 @@ Fetches user's recent conversations (decrypted).
         "id": "abc123",
         "conversationId": "conv_20260119_abc123",
         "userId": "user123",
+        "title": "Leadership skills development",
         "messages": [...],
         "topics": ["stress", "leadership"],
         "status": "active",
@@ -136,7 +178,7 @@ Fetches user's recent conversations (decrypted).
 
 ## GET /api/coach/conversations/{conversation_id}
 
-Fetches a specific conversation by ID.
+Fetches a specific conversation by ID with full decrypted messages.
 
 **Response:**
 ```json
@@ -145,15 +187,74 @@ Fetches a specific conversation by ID.
   "data": {
     "id": "abc123",
     "conversationId": "conv_20260119_abc123",
+    "title": "Leadership skills development",
     "messages": [
       {"role": "user", "content": "Hello", "timestamp": "..."},
       {"role": "assistant", "content": "Hi there!", "timestamp": "..."}
     ],
     "topics": ["greeting"],
-    "status": "active"
+    "status": "active",
+    "lastMessageAt": "2026-01-19T12:00:00Z",
+    "createdAt": "2026-01-19T10:00:00Z"
   }
 }
 ```
+
+---
+
+## DELETE /api/coach/conversations/{conversation_id}
+
+Deletes a conversation. Only the conversation owner can delete it.
+
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+// Path parameter
+conversationId: string  // Conversation ID
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+**Error Cases:**
+- Conversation not found → 404 Not Found
+
+---
+
+## PATCH /api/coach/conversations/{conversation_id}
+
+Renames a conversation title.
+
+**Frontend Input** (src/features/coach/coachApi.js):
+```typescript
+// Path parameter
+conversationId: string  // Conversation ID
+
+// Request body
+{
+  title: string  // New title (1-100 characters)
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "conv_20260119_abc123",
+    "title": "My new conversation title"
+  }
+}
+```
+
+**Error Cases:**
+- Conversation not found → 404 Not Found
 
 ---
 

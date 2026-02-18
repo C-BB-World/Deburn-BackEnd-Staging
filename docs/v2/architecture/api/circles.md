@@ -165,9 +165,16 @@ groupId: string  // Group ID
   description?: string,    // Optional description
   scheduledAt: string,     // ISO 8601 datetime
   duration: number,        // Duration in minutes
-  location?: string        // Optional location/link
+  location?: string,       // Optional location/link
+  recurrence?: boolean,    // Whether this is a recurring meeting (default: false)
+  frequency?: string       // "weekly" | "biweekly" | "monthly" (required if recurrence is true)
 }
 ```
+
+**Notes:**
+- When `recurrence: true`, the meeting repeats at the same day/time according to `frequency`
+- Upcoming occurrences are computed dynamically from the anchor `scheduledAt` date
+- Old meeting documents without `recurrence` field are treated as non-recurring
 
 ---
 
@@ -226,6 +233,105 @@ meetingId: string  // Meeting ID
 // Request body
 {}  // Empty object
 ```
+
+---
+
+## GET /api/circles/groups/:groupId/messages
+
+Fetches paginated messages for a group.
+
+**Frontend Input** (src/features/circles/circlesApi.js):
+```typescript
+// Path parameter
+groupId: string  // Group ID
+
+// Query parameters
+limit?: number   // 1-100 (default: 50)
+offset?: number  // Pagination offset (default: 0)
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": "msg_abc123",
+        "groupId": "grp_123",
+        "userId": "usr_456",
+        "userName": "Anna S.",
+        "content": "Hello everyone!",
+        "createdAt": "2026-02-19T10:30:00Z"
+      }
+    ],
+    "total": 25,
+    "hasMore": false
+  }
+}
+```
+
+**Notes:**
+- User must be a group member to view messages
+- Message content is decrypted server-side before returning
+
+---
+
+## POST /api/circles/groups/:groupId/messages
+
+Sends a message to the group chat.
+
+**Frontend Input** (src/features/circles/circlesApi.js):
+```typescript
+// Path parameter
+groupId: string  // Group ID
+
+// Request body
+{
+  content: string  // Message text (1-500 characters)
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "msg_abc123",
+    "groupId": "grp_123",
+    "userId": "usr_456",
+    "userName": "Anna S.",
+    "content": "Hello everyone!",
+    "createdAt": "2026-02-19T10:30:00Z"
+  }
+}
+```
+
+**Side Effects:**
+- Sends in-app notifications to all other group members (type: `group_message`)
+- Sends email notifications with message preview (first 100 chars)
+
+---
+
+## POST /api/circles/meetings/:meetingId/skip-occurrence
+
+Skips a single occurrence of a recurring meeting for the current user.
+
+**Frontend Input** (src/features/circles/circlesApi.js):
+```typescript
+// Path parameter
+meetingId: string  // Meeting ID
+
+// Request body
+{
+  date: string  // Date to skip in "YYYY-MM-DD" format
+}
+```
+
+**Notes:**
+- Only valid for recurring meetings (`recurrence: true`). Returns 400 for non-recurring meetings.
+- Adds `{userId, date}` to the meeting's `skippedOccurrences` array
+- Skipped occurrences still appear in the upcoming occurrences list but are marked as `skipped: true`
 
 ---
 

@@ -248,7 +248,8 @@ Member                           Circle System                      External
     │                                │                                   │
     │  schedule_meeting(             │                                   │
     │    group_id, title, topic,     │                                   │
-    │    scheduled_at, duration)     │                                   │
+    │    scheduled_at, duration,     │                                   │
+    │    recurrence?, frequency?)    │                                   │
     │───────────────────────────────>│                                   │
     │                                │                                   │
     │                                │  3. Verify group membership       │
@@ -284,8 +285,8 @@ Member                           Circle System                      External
 **Steps:**
 1. (Optional) Check common availability across all group members
 2. Verify user is a member of the group (or org admin)
-3. Create meeting with scheduled time, duration, topic
-4. Initialize attendance records for all group members (status: "pending")
+3. Create meeting with scheduled time, duration, topic, and optional recurrence settings
+4. Initialize attendance records for all group members (status: "invited")
 5. For each member with connected Google Calendar:
    - Create calendar event with all attendees
    - Enable Google Meet link generation
@@ -305,6 +306,26 @@ Member                           Circle System                      External
 - Not a group member → 403 Forbidden
 - Group not active → 400 Bad Request
 - Invalid scheduledAt (in past) → 400 Bad Request
+
+---
+
+### Pipeline 3b: Group Messaging
+
+Group members can send and view chat messages within their group.
+
+**Steps (send message):**
+1. Validate user is a member of the group
+2. Save message via GroupMessageService (encrypted if available)
+3. Send in-app notifications to all other group members (type: `group_message`)
+4. Send email notifications with message preview (first 100 chars)
+
+**Steps (list messages):**
+1. Validate user is a member of the group
+2. Return paginated messages with `hasMore` flag
+
+**Error Cases:**
+- Not a group member → 403 Forbidden (`NOT_GROUP_MEMBER`)
+- Empty or oversized content → 400 Bad Request
 
 ---
 
@@ -488,7 +509,7 @@ class PoolService:
         topic: str = None,
         description: str = None,
         target_group_size: int = 4,
-        cadence: str = "biweekly",
+        cadence: str = "biweekly",   # "weekly" | "biweekly" | "monthly"
         invitation_settings: dict = None
     ) -> CirclePool:
         """
@@ -907,7 +928,9 @@ class MeetingService:
         scheduled_at: datetime = None,
         duration: int = 60,
         timezone: str = "Europe/Stockholm",
-        create_calendar_events: bool = True
+        create_calendar_events: bool = True,
+        recurrence: bool = False,
+        frequency: str = None
     ) -> CircleMeeting:
         """
         Schedule a meeting for a group.
@@ -922,6 +945,8 @@ class MeetingService:
             duration: Duration in minutes (15-180)
             timezone: Timezone for the meeting
             create_calendar_events: Whether to create calendar events
+            recurrence: Whether this is a recurring meeting
+            frequency: "weekly" | "biweekly" | "monthly" (required if recurrence=True)
 
         Side Effects:
             - Creates calendar events for connected members
@@ -1003,6 +1028,49 @@ class MeetingService:
     ) -> CircleMeeting:
         """Mark meeting as completed with optional notes."""
 
+    def compute_upcoming_occurrences(
+        self,
+        meeting_doc: dict,
+        user_id: str,
+        count: int = 2
+    ) -> list[dict]:
+        """
+        Compute upcoming occurrences for a recurring meeting.
+
+        Pure computation — no DB calls. Returns up to `count` future
+        occurrences as {date: datetime, skipped: bool}.
+
+        Non-recurring meetings (or old docs without the field) return [].
+
+        Args:
+            meeting_doc: Raw meeting document from MongoDB
+            user_id: User ID to check skipped occurrences for
+            count: Number of future occurrences to return
+
+        Returns:
+            List of {date: datetime, skipped: bool}
+        """
+
+    def skip_occurrence(
+        self,
+        meeting_id: str,
+        user_id: str,
+        date: str
+    ) -> CircleMeeting:
+        """
+        Skip a single occurrence of a recurring meeting for a user.
+
+        Adds {userId, date} to skippedOccurrences on the meeting document.
+
+        Args:
+            meeting_id: Meeting ID
+            user_id: User skipping
+            date: Date to skip in "YYYY-MM-DD" format
+
+        Raises:
+            ValidationException: If meeting is not recurring
+        """
+
     def send_reminders(self) -> dict:
         """
         Send meeting reminders (called by cron).
@@ -1026,6 +1094,61 @@ class MeetingService:
         reason: str = None
     ) -> None:
         """Send meeting cancellation notification."""
+```
+
+---
+
+### GroupMessageService
+
+Handles group chat messaging with encryption.
+
+```python
+class GroupMessageService:
+    """
+    Manages group chat messages with optional AES-256-CBC encryption.
+    Messages are stored in a single document per group (embedded array pattern).
+    """
+
+    def __init__(self, db: Database, encryption_service=None):
+        """
+        Args:
+            db: MongoDB database connection
+            encryption_service: Optional encryption service for message content
+        """
+
+    async def create_message(
+        self,
+        group_id: str,
+        user_id: str,
+        user_name: str,
+        content: str
+    ) -> dict:
+        """
+        Create a new message in a group chat.
+
+        Args:
+            group_id: Group to send message to
+            user_id: Sender's user ID
+            user_name: Sender's display name
+            content: Message text (max 500 chars)
+
+        Returns:
+            Created message dict with id, groupId, userId, userName, content, createdAt
+        """
+
+    async def get_messages(
+        self,
+        group_id: str,
+        limit: int = 50,
+        offset: int = 0
+    ) -> list[dict]:
+        """
+        Get paginated messages for a group.
+        Messages are decrypted before returning.
+        """
+
+    async def get_message_count(self, group_id: str) -> int:
+        """Get total message count for a group."""
 ```
 
 ---
@@ -1140,7 +1263,7 @@ class AvailabilityService:
     "topic": str,                  # Discussion theme
     "description": str,            # Pool description
     "targetGroupSize": int,        # Target members per group (3-6)
-    "cadence": str,                # "weekly" | "biweekly"
+    "cadence": str,                # "weekly" | "biweekly" | "monthly"
     "status": str,                 # draft | inviting | assigning | active | completed | cancelled
     "invitationSettings": {
         "expiryDays": int,         # Days until invite expires (default: 14)
@@ -1253,9 +1376,15 @@ class AvailabilityService:
         "eventId": str,            # Google Calendar event ID
         "provider": str            # "google"
     }],
+    "recurrence": bool,            # Whether this is a recurring meeting (default: false)
+    "frequency": str,              # "weekly" | "biweekly" | "monthly" (null if not recurring)
+    "skippedOccurrences": [{       # Per-user skipped occurrences (null if not recurring)
+        "userId": ObjectId,
+        "date": str                # "YYYY-MM-DD"
+    }],
     "attendance": [{
         "userId": ObjectId,
-        "status": str,             # pending | accepted | declined | attended | no_show
+        "status": str,             # invited | accepted | declined | attended | no_show
         "respondedAt": datetime
     }],
     "notes": str,                  # Post-meeting notes
@@ -1276,6 +1405,31 @@ class AvailabilityService:
 - `{ calendarEvents.userId: 1 }` - User's calendar events
 - `{ scheduledAt: 1, reminder24hSent: 1 }` - Reminder processing
 - `{ scheduledAt: 1, reminder1hSent: 1 }` - Reminder processing
+
+---
+
+### GroupMessages (Collection: `circlemessages`)
+
+```python
+# circlemessages collection (one document per group, embedded array pattern)
+{
+    "_id": ObjectId,
+    "groupId": ObjectId,           # Group this chat belongs to
+    "messages": [{
+        "messageId": str,          # "msg_{random_hex}"
+        "userId": ObjectId,        # Sender
+        "userName": str,           # Sender display name
+        "content": str,            # Message text (encrypted if encryption_service available)
+        "encrypted": bool,         # Whether content is encrypted
+        "createdAt": datetime
+    }],
+    "createdAt": datetime,
+    "updatedAt": datetime
+}
+```
+
+**Indexes:**
+- `{ groupId: 1 }` - Unique, one document per group
 
 ---
 
@@ -1380,7 +1534,7 @@ Each pool can have custom settings stored in the pool document:
 ```python
 {
     "targetGroupSize": 4,              # Target members per group (3-6)
-    "cadence": "biweekly",             # "weekly" | "biweekly"
+    "cadence": "biweekly",             # "weekly" | "biweekly" | "monthly"
     "invitationSettings": {
         "expiryDays": 14,              # Days until invite expires
         "customMessage": "..."         # Custom message in invitation email
@@ -1403,3 +1557,4 @@ Each pool can have custom settings stored in the pool document:
 | `meeting_cancelled` | Meeting cancelled | High (2) | Cancellation with reason |
 | `group_member_added` | New member | Normal (3) | When member joins via admin |
 | `group_member_moved` | Member moved | Normal (3) | When admin moves member |
+| `group_message` | New message | Normal (3) | When a group member sends a chat message |
