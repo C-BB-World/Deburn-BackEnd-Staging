@@ -8,7 +8,7 @@ import asyncio
 import logging
 from typing import Annotated, Optional, List
 
-from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 import json
 
@@ -47,6 +47,11 @@ from app_v2.schemas.coach import (
     CommitmentStatsResponse,
     PatternResultResponse,
     RecentConversationsResponse,
+    ConversationListResponse,
+    ConversationSummaryResponse,
+    RenameConversationRequest,
+    RenameConversationResponse,
+    DeleteConversationResponse,
     VoiceRequest,
     TranslateConversationRequest,
     TranslateConversationResponse,
@@ -77,7 +82,8 @@ def _format_conversation(conv: dict) -> ConversationResponse:
         topics=conv.get("topics", []),
         status=conv.get("status", "active"),
         lastMessageAt=conv.get("lastMessageAt"),
-        createdAt=conv.get("createdAt")
+        createdAt=conv.get("createdAt"),
+        title=conv.get("title"),
     )
 
 
@@ -97,7 +103,8 @@ async def send_message(
         db=hub_db,
         encryption_service=encryption_service,
         conversation_id=body.conversationId,
-        user_id=user_id
+        user_id=user_id,
+        first_message=body.message if body.conversationId is None else None,
     )
 
     # Step 2: Save user message (encrypted)
@@ -246,6 +253,66 @@ async def get_recent_conversations(
     return RecentConversationsResponse(
         conversations=[_format_conversation(c) for c in conversations]
     )
+
+
+@router.get("/conversations/list", response_model=ConversationListResponse)
+async def list_conversations(
+    user: Annotated[dict, Depends(require_auth)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+):
+    """List conversation summaries (no messages, no decryption)."""
+    result = await conversation_pipeline.list_conversation_summaries(
+        db=hub_db,
+        user_id=str(user["_id"]),
+        skip=skip,
+        limit=limit,
+    )
+
+    return ConversationListResponse(
+        conversations=[
+            ConversationSummaryResponse(**c) for c in result["conversations"]
+        ],
+        total=result["total"],
+        hasMore=result["hasMore"],
+    )
+
+
+@router.delete("/conversations/{conversation_id}", response_model=DeleteConversationResponse)
+async def delete_conversation(
+    conversation_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+):
+    """Delete a conversation."""
+    deleted = await conversation_pipeline.delete_conversation_by_id(
+        db=hub_db,
+        conversation_id=conversation_id,
+        user_id=str(user["_id"]),
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return DeleteConversationResponse(deleted=True)
+
+
+@router.patch("/conversations/{conversation_id}", response_model=RenameConversationResponse)
+async def rename_conversation_endpoint(
+    conversation_id: str,
+    body: RenameConversationRequest,
+    user: Annotated[dict, Depends(require_auth)],
+    hub_db: Annotated[AsyncIOMotorDatabase, Depends(get_hub_db)],
+):
+    """Rename a conversation."""
+    result = await conversation_pipeline.rename_conversation(
+        db=hub_db,
+        conversation_id=conversation_id,
+        user_id=str(user["_id"]),
+        title=body.title.strip(),
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return RenameConversationResponse(id=result["id"], title=result["title"])
 
 
 @router.get("/conversations/{conversation_id}", response_model=Optional[ConversationResponse])

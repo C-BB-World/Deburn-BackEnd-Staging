@@ -34,6 +34,7 @@ class ConversationResponse(BaseModel):
     status: str
     lastMessageAt: Optional[datetime] = None
     createdAt: Optional[datetime] = None
+    title: Optional[str] = None
 
 
 class ConversationStarterResponse(BaseModel):
@@ -123,6 +124,41 @@ class CheckinInsightResponse(BaseModel):
 class RecentConversationsResponse(BaseModel):
     """List of recent conversations."""
     conversations: List[ConversationResponse]
+
+
+class ConversationSummaryResponse(BaseModel):
+    """Conversation summary (no messages) for list view."""
+    id: str
+    conversationId: str
+    title: Optional[str] = None
+    messageCount: int = 0
+    topics: List[str] = []
+    status: str = "active"
+    lastMessageAt: Optional[datetime] = None
+    createdAt: Optional[datetime] = None
+
+
+class ConversationListResponse(BaseModel):
+    """Paginated list of conversation summaries."""
+    conversations: List[ConversationSummaryResponse]
+    total: int
+    hasMore: bool
+
+
+class RenameConversationRequest(BaseModel):
+    """Request to rename a conversation."""
+    title: str = Field(..., min_length=1, max_length=100)
+
+
+class RenameConversationResponse(BaseModel):
+    """Response after renaming a conversation."""
+    id: str
+    title: str
+
+
+class DeleteConversationResponse(BaseModel):
+    """Response after deleting a conversation."""
+    deleted: bool
 
 
 class VoiceRequest(BaseModel):

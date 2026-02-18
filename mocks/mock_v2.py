@@ -1639,6 +1639,42 @@ async def get_coach_starters(
     return success_response({"starters": starters[:4]})
 
 
+@app.get("/api/coach/conversations/list")
+async def list_conversations(
+    skip: int = 0,
+    limit: int = 20,
+    authorization: Optional[str] = Header(None),
+):
+    require_auth(authorization)
+
+    # Sort by lastMessageAt descending
+    all_convs = sorted(
+        MOCK_CONVERSATIONS.values(),
+        key=lambda c: c["lastMessageAt"],
+        reverse=True,
+    )
+    page = all_convs[skip : skip + limit]
+
+    summaries = []
+    for c in page:
+        summaries.append({
+            "id": c["id"],
+            "conversationId": c["id"],
+            "title": c["title"],
+            "messageCount": len(c["messages"]),
+            "topics": [],
+            "status": c["status"],
+            "lastMessageAt": c["lastMessageAt"],
+            "createdAt": c["createdAt"],
+        })
+
+    return {
+        "conversations": summaries,
+        "total": len(all_convs),
+        "hasMore": skip + limit < len(all_convs),
+    }
+
+
 @app.get("/api/coach/conversations")
 async def get_recent_conversations(
     skip: int = 0,

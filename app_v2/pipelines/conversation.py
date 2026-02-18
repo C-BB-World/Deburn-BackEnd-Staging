@@ -29,7 +29,8 @@ async def get_or_create_conversation(
     db: AsyncIOMotorDatabase,
     encryption_service: MemoryEncryptionService,
     conversation_id: Optional[str],
-    user_id: str
+    user_id: str,
+    first_message: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Get existing conversation or create a new one.
@@ -39,6 +40,7 @@ async def get_or_create_conversation(
         encryption_service: For decrypting messages
         conversation_id: Existing conversation ID or None
         user_id: User's ID
+        first_message: First user message (used to auto-generate title for new conversations)
 
     Returns:
         Conversation dict with decrypted messages
@@ -67,6 +69,9 @@ async def get_or_create_conversation(
         "createdAt": now,
         "updatedAt": now
     }
+
+    if first_message is not None:
+        conversation_doc["title"] = first_message[:50].strip()
 
     result = await collection.insert_one(conversation_doc)
     conversation_doc["_id"] = result.inserted_id
@@ -305,4 +310,129 @@ def _format_conversation(
         "status": conversation.get("status", "active"),
         "lastMessageAt": conversation.get("lastMessageAt"),
         "createdAt": conversation.get("createdAt"),
+        "title": conversation.get("title"),
     }
+
+
+def _format_conversation_summary(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a raw MongoDB doc as a summary (no messages, no decryption)."""
+    return {
+        "id": str(doc["_id"]),
+        "conversationId": doc["conversationId"],
+        "title": doc.get("title"),
+        "messageCount": len(doc.get("messages", [])),
+        "topics": doc.get("topics", []),
+        "status": doc.get("status", "active"),
+        "lastMessageAt": doc.get("lastMessageAt"),
+        "createdAt": doc.get("createdAt"),
+    }
+
+
+async def list_conversation_summaries(
+    db: AsyncIOMotorDatabase,
+    user_id: str,
+    skip: int = 0,
+    limit: int = 20
+) -> Dict[str, Any]:
+    """
+    List conversation summaries (no messages, no decryption).
+
+    Args:
+        db: Hub database connection
+        user_id: User's ID
+        skip: Pagination offset
+        limit: Page size
+
+    Returns:
+        Dict with conversations list, total count, and hasMore flag
+    """
+    collection = db["conversations"]
+
+    cursor = collection.find({
+        "userId": ObjectId(user_id),
+        "status": "active"
+    })
+    cursor = cursor.sort("lastMessageAt", -1)
+    cursor = cursor.skip(skip)
+    cursor = cursor.limit(limit)
+
+    docs = await cursor.to_list(length=limit)
+    total = await collection.count_documents({
+        "userId": ObjectId(user_id),
+        "status": "active"
+    })
+
+    conversations = [_format_conversation_summary(doc) for doc in docs]
+
+    return {
+        "conversations": conversations,
+        "total": total,
+        "hasMore": (skip + limit) < total,
+    }
+
+
+async def delete_conversation_by_id(
+    db: AsyncIOMotorDatabase,
+    conversation_id: str,
+    user_id: str
+) -> bool:
+    """
+    Delete a single conversation with ownership check.
+
+    Args:
+        db: Hub database connection
+        conversation_id: Conversation ID to delete
+        user_id: User's ID (ownership check)
+
+    Returns:
+        True if deleted, False if not found
+    """
+    collection = db["conversations"]
+
+    result = await collection.delete_one({
+        "conversationId": conversation_id,
+        "userId": ObjectId(user_id)
+    })
+
+    if result.deleted_count > 0:
+        logger.info(f"Deleted conversation {conversation_id} for user {user_id}")
+        return True
+    return False
+
+
+async def rename_conversation(
+    db: AsyncIOMotorDatabase,
+    conversation_id: str,
+    user_id: str,
+    title: str
+) -> Optional[Dict[str, str]]:
+    """
+    Rename a conversation.
+
+    Args:
+        db: Hub database connection
+        conversation_id: Conversation ID to rename
+        user_id: User's ID (ownership check)
+        title: New title
+
+    Returns:
+        Dict with id and title, or None if not found
+    """
+    collection = db["conversations"]
+
+    result = await collection.update_one(
+        {
+            "conversationId": conversation_id,
+            "userId": ObjectId(user_id)
+        },
+        {
+            "$set": {
+                "title": title,
+                "updatedAt": datetime.now(timezone.utc)
+            }
+        }
+    )
+
+    if result.matched_count > 0:
+        return {"id": conversation_id, "title": title}
+    return None
