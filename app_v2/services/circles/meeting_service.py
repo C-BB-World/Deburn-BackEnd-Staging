@@ -117,18 +117,17 @@ class MeetingService:
             title = f"{group['name']} Meeting"
 
         # Build attendance list with status based on availability
+        # Use group member names (same source as availability endpoint) to avoid mismatches
         available_names_set = set(available_members) if available_members else None
         attendance = []
 
         for m in group["members"]:
             user_id = m.get("userId") if isinstance(m, dict) else m
+            member_name = m.get("name", "") if isinstance(m, dict) else ""
 
             # Determine status: if we have available_members list, check if user is in it
             if available_names_set is not None:
-                # Look up user name to check availability
-                user_doc = await self._db["users"].find_one({"_id": user_id})
-                user_name = f"{user_doc.get('firstName', '')} {user_doc.get('lastName', '')}".strip() if user_doc else ""
-                status = "pending" if user_name in available_names_set else "declined"
+                status = "pending" if member_name in available_names_set else "declined"
             else:
                 status = "pending"
 
