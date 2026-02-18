@@ -214,6 +214,9 @@ class ScheduleMeetingRequest(BaseModel):
 class UpdateAttendanceRequest(BaseModel):
     attending: bool
 
+class SendGroupMessageRequest(BaseModel):
+    content: str
+
 
 class CreatePoolRequest(BaseModel):
     name: str
@@ -408,6 +411,33 @@ MOCK_CIRCLE_GROUPS = [
         "pool": {"cadence": "weekly", "topic": "Stakeholder communication strategies"},
     },
 ]
+
+MOCK_GROUP_MESSAGES = {
+    "grp_123": [
+        {
+            "id": "msg_1",
+            "userId": "usr_1",
+            "userName": "Anna Svensson",
+            "content": "Hi everyone! Can we focus on week 7 for our next meeting?",
+            "createdAt": "2026-02-17T09:30:00Z",
+        },
+        {
+            "id": "msg_2",
+            "userId": "usr_2",
+            "userName": "Erik Lindqvist",
+            "content": "Works for me! Tuesday or Thursday afternoon would be ideal.",
+            "createdAt": "2026-02-17T10:15:00Z",
+        },
+        {
+            "id": "msg_3",
+            "userId": "usr_3",
+            "userName": "Maria Karlsson",
+            "content": "Thursday at 15:00 works great for me.",
+            "createdAt": "2026-02-17T14:02:00Z",
+        },
+    ],
+    "grp_456": [],
+}
 
 MOCK_PENDING_INVITATIONS = [
     {
@@ -1192,6 +1222,30 @@ async def schedule_meeting(group_id: str, request: ScheduleMeetingRequest, autho
         "date": request.scheduledAt,
         "meetingLink": f"https://meet.google.com/{secrets.token_hex(3)}-{secrets.token_hex(4)}-{secrets.token_hex(3)}",
     })
+
+
+@app.get("/api/circles/groups/{group_id}/messages")
+async def get_group_messages(group_id: str, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    msgs = MOCK_GROUP_MESSAGES.get(group_id, [])
+    return success_response({"messages": msgs})
+
+
+@app.post("/api/circles/groups/{group_id}/messages")
+async def send_group_message(group_id: str, request: SendGroupMessageRequest, authorization: Optional[str] = Header(None)):
+    require_auth(authorization)
+    msg_id = f"msg_{secrets.token_hex(4)}"
+    new_msg = {
+        "id": msg_id,
+        "userId": "usr_current",
+        "userName": "You",
+        "content": request.content,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    if group_id not in MOCK_GROUP_MESSAGES:
+        MOCK_GROUP_MESSAGES[group_id] = []
+    MOCK_GROUP_MESSAGES[group_id].append(new_msg)
+    return success_response(new_msg)
 
 
 @app.get("/api/circles/invitations/{token}")
