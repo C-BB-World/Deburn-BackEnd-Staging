@@ -635,6 +635,124 @@ Best regards,
             text=text_content,
         )
 
+    async def send_group_message_emails_batch(
+        self,
+        recipients: list,
+        sender_name: str = "",
+        group_name: str = "",
+        message_preview: str = "",
+    ) -> dict:
+        """
+        Send group message notification emails in a single batch.
+
+        Args:
+            recipients: List of dicts with 'email' and optional 'name' keys
+            sender_name: Name of the message sender
+            group_name: Name of the group
+            message_preview: First 100 chars of the message
+
+        Returns:
+            dict with success status and results
+        """
+        if not recipients:
+            return {"success": True, "data": []}
+
+        circles_link = f"{self._app_url}/circles"
+        subject = f"{sender_name} left a message in {group_name}"
+
+        emails = []
+        for recipient in recipients:
+            name = recipient.get("name") or "there"
+            to_email = recipient["email"]
+
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">New Group Message</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">Hi {name},</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;"><strong>{sender_name}</strong> left a message in <strong>{group_name}</strong>:</p>
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; border-left: 4px solid #2D4A47;">
+                                        <p style="margin: 0; font-size: 15px; color: #333333; font-style: italic;">"{message_preview}"</p>
+                                    </td>
+                                </tr>
+                            </table>
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{circles_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">View Your Group</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">Best regards,<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+            text_content = f"""New Group Message
+
+Hi {name},
+
+{sender_name} left a message in {group_name}:
+
+"{message_preview}"
+
+View Your Group: {circles_link}
+
+Best regards,
+{self._team_name}
+"""
+
+            emails.append({
+                "to": to_email,
+                "subject": subject,
+                "html": html_content,
+                "text": text_content,
+            })
+
+        # Send in chunks of EMAIL_MAX_BATCH_SIZE
+        results = []
+        for i in range(0, len(emails), EMAIL_MAX_BATCH_SIZE):
+            chunk = emails[i:i + EMAIL_MAX_BATCH_SIZE]
+            result = await self._send_resend_batch(chunk)
+            results.append(result)
+
+        failed = [r for r in results if not r.get("success")]
+        if failed:
+            logger.warning(f"Some batch emails failed: {len(failed)}/{len(results)} batches")
+
+        return {
+            "success": len(failed) == 0,
+            "batches": len(results),
+            "total_emails": len(emails),
+        }
+
     async def send_meeting_scheduled_email(
         self,
         to_email: str,

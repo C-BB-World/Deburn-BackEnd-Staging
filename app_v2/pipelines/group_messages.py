@@ -64,8 +64,9 @@ async def send_group_message(
         content=content,
     )
 
-    # 4. Fan out notifications and emails to other members
+    # 4. Fan out notifications and collect email recipients
     users_collection = db["users"] if db is not None else None
+    email_recipients = []
 
     for member in members:
         if not isinstance(member, dict):
@@ -93,30 +94,37 @@ async def send_group_message(
                 f"Failed to create notification for user {member_id_str}: {e}"
             )
 
-        # Email notification — look up email from users collection
+        # Collect email recipient info
         try:
-            member_email = None
-            member_name = member.get("name")
             if email_service and users_collection is not None:
                 user_doc = await users_collection.find_one({"_id": member_user_id})
                 if user_doc:
                     member_email = user_doc.get("email")
+                    member_name = member.get("name")
                     if not member_name:
                         profile = user_doc.get("profile", {})
                         member_name = profile.get("firstName") or member_name
-
-            if email_service and member_email:
-                await email_service.send_group_message_email(
-                    to_email=member_email,
-                    user_name=member_name,
-                    sender_name=sender_name,
-                    group_name=group_name,
-                    message_preview=content[:100],
-                )
+                    if member_email:
+                        email_recipients.append({
+                            "email": member_email,
+                            "name": member_name,
+                        })
         except Exception as e:
             logger.warning(
-                f"Failed to send email to user {member_id_str}: {e}"
+                f"Failed to look up email for user {member_id_str}: {e}"
             )
+
+    # 5. Send email notifications in a single batch
+    if email_service and email_recipients:
+        try:
+            await email_service.send_group_message_emails_batch(
+                recipients=email_recipients,
+                sender_name=sender_name,
+                group_name=group_name,
+                message_preview=content[:100],
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send batch email for group {group_id}: {e}")
 
     return saved_message
 

@@ -281,7 +281,7 @@ class TestSendGroupMessage:
         mock_group_service.user_has_group_access.return_value = True
         mock_group_service.get_group.return_value = sample_group_doc
         mock_message_service.create_message.return_value = sample_saved_message
-        mock_email_service.send_group_message_email.side_effect = Exception("SMTP fail")
+        mock_email_service.send_group_message_emails_batch.side_effect = Exception("Resend fail")
 
         result = await send_group_message(
             message_service=mock_message_service,
@@ -297,7 +297,7 @@ class TestSendGroupMessage:
         assert result["content"] == "Let's focus on week 7"
 
     @pytest.mark.asyncio
-    async def test_sends_emails_to_other_members(
+    async def test_sends_batch_email_to_other_members(
         self,
         mock_message_service,
         mock_group_service,
@@ -324,12 +324,16 @@ class TestSendGroupMessage:
             content="Let's focus on week 7",
         )
 
-        # 3 members - 1 sender = 2 emails
-        assert mock_email_service.send_group_message_email.call_count == 2
-        # Verify emails were sent to the right addresses
-        email_calls = mock_email_service.send_group_message_email.call_args_list
-        sent_emails = {call.kwargs["to_email"] for call in email_calls}
+        # Single batch call instead of per-member calls
+        mock_email_service.send_group_message_emails_batch.assert_called_once()
+        call_kwargs = mock_email_service.send_group_message_emails_batch.call_args.kwargs
+        recipients = call_kwargs["recipients"]
+        # 3 members - 1 sender = 2 recipients
+        assert len(recipients) == 2
+        sent_emails = {r["email"] for r in recipients}
         assert sent_emails == {"erik@example.com", "maria@example.com"}
+        assert call_kwargs["sender_name"] == "Anna Svensson"
+        assert call_kwargs["group_name"] == "Engineering Leaders"
 
 
 # ─────────────────────────────────────────────────────────────────
