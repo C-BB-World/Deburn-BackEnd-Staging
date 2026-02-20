@@ -203,6 +203,28 @@ async def send_message(
                     language=body.language
                 )
 
+        except Exception as e:
+            # Claude API failure, timeout, or unexpected error mid-stream
+            logger.error(f"Stream error for {conversation_id}: {type(e).__name__}: {e}")
+
+            error_data = json.dumps({
+                "type": "error",
+                "content": "Stream failed",
+                "retryable": True,
+            })
+            yield f"data: {error_data}\n\n"
+
+            if full_response:
+                await conversation_pipeline.save_message(
+                    db=hub_db,
+                    encryption_service=encryption_service,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=full_response,
+                    metadata={"topics": topics, "commitment": commitment_info, "actions": actions, "partial": True},
+                    language=body.language
+                )
+
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
