@@ -63,6 +63,7 @@ from app_v2.services.calendar.calendar_availability_service import CalendarAvail
 # Content services
 from app_v2.services.content.content_service import ContentService
 from app_v2.services.content.learning_progress_service import LearningProgressService
+from app_v2.services.content.bookmark_service import BookmarkService
 
 # AI/Coach services
 from app_v2.services.coach.safety_checker import SafetyChecker
@@ -164,6 +165,7 @@ _calendar_availability_service: Optional[CalendarAvailabilityService] = None
 # Content
 _content_service: Optional[ContentService] = None
 _learning_progress_service: Optional[LearningProgressService] = None
+_bookmark_service: Optional[BookmarkService] = None
 
 # AI/Coach
 _agent: Optional[Agent] = None
@@ -360,7 +362,7 @@ def init_calendar_services(db: AsyncIOMotorDatabase) -> None:
 
 def init_content_services(db: AsyncIOMotorDatabase) -> None:
     """Initialize content services."""
-    global _content_service, _learning_progress_service
+    global _content_service, _learning_progress_service, _bookmark_service
 
     source_type = os.getenv("CONTENT_SOURCE_TYPE", "file")
     filepath = os.getenv("CONTENT_FILEPATH")
@@ -371,6 +373,7 @@ def init_content_services(db: AsyncIOMotorDatabase) -> None:
         db=db if source_type == "database" else None
     )
     _learning_progress_service = LearningProgressService(db=db)
+    _bookmark_service = BookmarkService(db=db)
 
 
 def init_ai_services(
@@ -851,6 +854,13 @@ def get_learning_progress_service() -> LearningProgressService:
     if _learning_progress_service is None:
         raise RuntimeError("Content services not initialized.")
     return _learning_progress_service
+
+
+def get_bookmark_service() -> BookmarkService:
+    """Get bookmark service instance."""
+    if _bookmark_service is None:
+        raise RuntimeError("Content services not initialized.")
+    return _bookmark_service
 
 
 # ─────────────────────────────────────────────────────────────────

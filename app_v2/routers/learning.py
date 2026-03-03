@@ -4,7 +4,8 @@ from typing import Annotated
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app_v2.dependencies import require_auth, get_hub_db
+from app_v2.dependencies import require_auth, get_hub_db, get_bookmark_service
+from app_v2.services.content.bookmark_service import BookmarkService
 from common.utils import success_response
 
 logger = logging.getLogger(__name__)
@@ -160,6 +161,40 @@ async def stream_audio(
             "Accept-Ranges": "bytes",
         }
     )
+
+
+# ─── Bookmark endpoints ───────────────────────────────────────
+
+@router.post("/content/{content_id}/bookmark")
+async def add_bookmark(
+    content_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+    bookmark_service: Annotated[BookmarkService, Depends(get_bookmark_service)],
+):
+    """Bookmark a content item."""
+    result = await bookmark_service.add_bookmark(str(user["_id"]), content_id)
+    return success_response(result)
+
+
+@router.delete("/content/{content_id}/bookmark")
+async def remove_bookmark(
+    content_id: str,
+    user: Annotated[dict, Depends(require_auth)],
+    bookmark_service: Annotated[BookmarkService, Depends(get_bookmark_service)],
+):
+    """Remove a bookmark from a content item."""
+    await bookmark_service.remove_bookmark(str(user["_id"]), content_id)
+    return success_response({"removed": True})
+
+
+@router.get("/bookmarks")
+async def get_bookmarks(
+    user: Annotated[dict, Depends(require_auth)],
+    bookmark_service: Annotated[BookmarkService, Depends(get_bookmark_service)],
+):
+    """Get all bookmarked content IDs for the current user."""
+    ids = await bookmark_service.get_bookmark_ids(str(user["_id"]))
+    return success_response({"bookmarkIds": ids})
 
 
 # Create a separate router for article images at /api/article-image
