@@ -992,6 +992,325 @@ Best regards,
             text=text_content,
         )
 
+    async def send_daily_reminder_email(
+        self,
+        to_email: str,
+        user_name: Optional[str] = None,
+        module_title: Optional[str] = None,
+        length_minutes: Optional[int] = None,
+        language: str = "en",
+    ) -> dict:
+        """
+        Send daily reminder email with check-in prompt and today's micro-course.
+
+        Args:
+            to_email: Recipient email address
+            user_name: User's first name (optional)
+            module_title: Today's micro-course title (optional)
+            length_minutes: Duration of the micro-course in minutes (optional)
+            language: Language code ("en" or "sv")
+
+        Returns:
+            dict with success status and message
+        """
+        name = user_name or "there"
+
+        # Get translations
+        t = self._get_translations(language, "daily_reminder", {
+            "name": name,
+            "module_title": module_title or "",
+            "length_minutes": str(length_minutes or ""),
+        })
+
+        dashboard_link = f"{self._app_url}/dashboard"
+
+        # Build learning section based on whether we have a module
+        if module_title:
+            learning_text = t.get("learning_text", f"{module_title} ({length_minutes} min)")
+        else:
+            learning_text = t.get("learning_fallback", "Explore today's featured content")
+
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Good Morning!")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", "Start your day with a quick check-in and today's micro-course.")}</p>
+
+                            <!-- Check-in Section -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #2D4A47;">{t.get("checkin_heading", "Daily Check-In")}</p>
+                                        <p style="margin: 0; font-size: 15px; color: #333333;">{t.get("checkin_text", "Take a moment to reflect on how you're feeling and set your intention for the day.")}</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Learning Section -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #2D4A47;">{t.get("learning_heading", "Today's Micro-Course")}</p>
+                                        <p style="margin: 0; font-size: 15px; color: #333333;">{learning_text}</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{dashboard_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "Go to Dashboard")}</a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0; font-size: 16px; color: #333333;">{t.get("closing", "Small steps lead to big changes. Have a great day!")}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0 0 8px 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                            <p style="margin: 0; font-size: 12px; color: #999999; text-align: center;">{t.get("unsubscribe_note", "You are receiving this email because you opted in to daily reminders. You can update your preferences in your account settings.")}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+        text_content = f"""
+{t.get("header", "Good Morning!")}
+
+{t.get("greeting", f"Hi {name},")}
+
+{t.get("body", "Start your day with a quick check-in and today's micro-course.")}
+
+{t.get("checkin_heading", "Daily Check-In")}
+{t.get("checkin_text", "Take a moment to reflect on how you're feeling and set your intention for the day.")}
+
+{t.get("learning_heading", "Today's Micro-Course")}
+{learning_text}
+
+{t.get("button", "Go to Dashboard")}: {dashboard_link}
+
+{t.get("closing", "Small steps lead to big changes. Have a great day!")}
+
+{t.get("sign_off", "Best regards,")}
+{self._team_name}
+
+{t.get("unsubscribe_note", "You are receiving this email because you opted in to daily reminders. You can update your preferences in your account settings.")}
+"""
+
+        return await self._send(
+            to=to_email,
+            subject=t.get("subject", "Your daily wellbeing check-in"),
+            html=html_content,
+            text=text_content,
+        )
+
+    async def send_daily_reminder_emails_batch(
+        self,
+        recipients: list,
+    ) -> dict:
+        """
+        Send daily reminder emails in batch.
+
+        Args:
+            recipients: List of dicts with keys:
+                - email (str): Recipient email
+                - name (str): User's first name
+                - language (str): "en" or "sv"
+                - module_title (str|None): Today's micro-course title
+                - length_minutes (int|None): Duration in minutes
+
+        Returns:
+            dict with success status and counts
+        """
+        if not recipients:
+            return {"success": True, "total_emails": 0, "batches": 0}
+
+        if self._mode == "console":
+            for r in recipients:
+                await self.send_daily_reminder_email(
+                    to_email=r["email"],
+                    user_name=r.get("name"),
+                    module_title=r.get("module_title"),
+                    length_minutes=r.get("length_minutes"),
+                    language=r.get("language", "en"),
+                )
+            return {"success": True, "mode": "console", "total_emails": len(recipients)}
+
+        emails = []
+        for r in recipients:
+            name = r.get("name") or "there"
+            language = r.get("language", "en")
+            module_title = r.get("module_title")
+            length_minutes = r.get("length_minutes")
+
+            t = self._get_translations(language, "daily_reminder", {
+                "name": name,
+                "module_title": module_title or "",
+                "length_minutes": str(length_minutes or ""),
+            })
+
+            dashboard_link = f"{self._app_url}/dashboard"
+
+            if module_title:
+                learning_text = t.get("learning_text", f"{module_title} ({length_minutes} min)")
+            else:
+                learning_text = t.get("learning_fallback", "Explore today's featured content")
+
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{t.get("header", "Good Morning!")}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">{t.get("greeting", f"Hi {name},")}</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{t.get("body", "Start your day with a quick check-in and today's micro-course.")}</p>
+
+                            <!-- Check-in Section -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #2D4A47;">{t.get("checkin_heading", "Daily Check-In")}</p>
+                                        <p style="margin: 0; font-size: 15px; color: #333333;">{t.get("checkin_text", "Take a moment to reflect on how you're feeling and set your intention for the day.")}</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Learning Section -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td bgcolor="#f5f5f5" style="background-color: #f5f5f5; padding: 20px; border-radius: 8px;">
+                                        <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #2D4A47;">{t.get("learning_heading", "Today's Micro-Course")}</p>
+                                        <p style="margin: 0; font-size: 15px; color: #333333;">{learning_text}</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{dashboard_link}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{t.get("button", "Go to Dashboard")}</a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0; font-size: 16px; color: #333333;">{t.get("closing", "Small steps lead to big changes. Have a great day!")}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0 0 8px 0; font-size: 14px; color: #666666; text-align: center;">{t.get("sign_off", "Best regards,")}<br>{self._team_name}</p>
+                            <p style="margin: 0; font-size: 12px; color: #999999; text-align: center;">{t.get("unsubscribe_note", "You are receiving this email because you opted in to daily reminders. You can update your preferences in your account settings.")}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+            text_content = f"""
+{t.get("header", "Good Morning!")}
+
+{t.get("greeting", f"Hi {name},")}
+
+{t.get("body", "Start your day with a quick check-in and today's micro-course.")}
+
+{t.get("checkin_heading", "Daily Check-In")}
+{t.get("checkin_text", "Take a moment to reflect on how you're feeling and set your intention for the day.")}
+
+{t.get("learning_heading", "Today's Micro-Course")}
+{learning_text}
+
+{t.get("button", "Go to Dashboard")}: {dashboard_link}
+
+{t.get("closing", "Small steps lead to big changes. Have a great day!")}
+
+{t.get("sign_off", "Best regards,")}
+{self._team_name}
+
+{t.get("unsubscribe_note", "You are receiving this email because you opted in to daily reminders. You can update your preferences in your account settings.")}
+"""
+
+            emails.append({
+                "to": r["email"],
+                "subject": t.get("subject", "Your daily wellbeing check-in"),
+                "html": html_content,
+                "text": text_content,
+            })
+
+        # Send in chunks of EMAIL_MAX_BATCH_SIZE
+        results = []
+        for i in range(0, len(emails), EMAIL_MAX_BATCH_SIZE):
+            chunk = emails[i:i + EMAIL_MAX_BATCH_SIZE]
+            result = await self._send_resend_batch(chunk)
+            results.append(result)
+
+        failed = [r for r in results if not r.get("success")]
+        if failed:
+            logger.warning(f"Some daily reminder batch emails failed: {len(failed)}/{len(results)} batches")
+
+        return {
+            "success": len(failed) == 0,
+            "batches": len(results),
+            "total_emails": len(emails),
+        }
+
     async def _send(
         self,
         to: str,

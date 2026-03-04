@@ -52,5 +52,20 @@
     "link_fallback": "Eller kopiera och klistra in denna länk i din webbläsare:",
     "ignore_notice": "Om du inte begärde en lösenordsåterställning kan du ignorera detta meddelande.",
     "sign_off": "Vänliga hälsningar,"
+  },
+  "daily_reminder": {
+    "subject": "Din dagliga välmående-incheckning",
+    "header": "God Morgon!",
+    "greeting": "Hej {{name}},",
+    "body": "Börja din dag med en snabb incheckning och dagens mikrokurs.",
+    "checkin_heading": "Daglig Incheckning",
+    "checkin_text": "Ta en stund att reflektera över hur du mår och sätt din intention för dagen.",
+    "learning_heading": "Dagens Mikrokurs",
+    "learning_text": "{{module_title}} ({{length_minutes}} min)",
+    "learning_fallback": "Utforska dagens utvalda innehåll",
+    "button": "Gå till Dashboard",
+    "closing": "Små steg leder till stora förändringar. Ha en fin dag!",
+    "sign_off": "Vänliga hälsningar,",
+    "unsubscribe_note": "Du får detta mejl för att du valt att ta emot dagliga påminnelser. Du kan ändra dina inställningar i ditt konto."
   }
 }

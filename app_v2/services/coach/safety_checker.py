@@ -40,7 +40,7 @@ class SafetyChecker:
         "en": [
             "suicide", "suicidal", "kill myself", "end my life",
             "self-harm", "hurt myself", "cutting", "don't want to live",
-            "panic attack", "can't breathe", "dying", "want to die"
+            "panic attack", "can't breathe", "death", "want to die"
         ],
         "sv": [
             "självmord", "ta livet av mig", "skada mig själv",

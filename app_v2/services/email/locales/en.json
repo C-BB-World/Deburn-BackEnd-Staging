@@ -52,5 +52,20 @@
     "link_fallback": "Or copy and paste this link into your browser:",
     "ignore_notice": "If you didn't request a password reset, you can safely ignore this email.",
     "sign_off": "Best regards,"
+  },
+  "daily_reminder": {
+    "subject": "Your daily wellbeing check-in",
+    "header": "Good Morning!",
+    "greeting": "Hi {{name}},",
+    "body": "Start your day with a quick check-in and today's micro-course.",
+    "checkin_heading": "Daily Check-In",
+    "checkin_text": "Take a moment to reflect on how you're feeling and set your intention for the day.",
+    "learning_heading": "Today's Micro-Course",
+    "learning_text": "{{module_title}} ({{length_minutes}} min)",
+    "learning_fallback": "Explore today's featured content",
+    "button": "Go to Dashboard",
+    "closing": "Small steps lead to big changes. Have a great day!",
+    "sign_off": "Best regards,",
+    "unsubscribe_note": "You are receiving this email because you opted in to daily reminders. You can update your preferences in your account settings."
   }
 }
