@@ -42,7 +42,7 @@ class DailyReminderJob:
     def __init__(
         self,
         hub_db_uri: str,
-        hub_db_name: str = "deburn_hub",
+        hub_db_name: str = "deburn-hub",
     ):
         self._hub_client = AsyncIOMotorClient(hub_db_uri)
         self._hub_db = self._hub_client[hub_db_name]
@@ -78,6 +78,12 @@ class DailyReminderJob:
                 reminder_id = reminder["_id"]
                 reminder_name = reminder.get("name", str(reminder_id))
                 try:
+                    # Skip if already sent today (safety net against double-sends)
+                    last_sent = reminder.get("lastSentAt")
+                    if last_sent and last_sent.date() == now.date():
+                        logger.info(f"Reminder '{reminder_name}' already sent today, skipping")
+                        continue
+
                     content = reminder.get("content", {})
                     recipients = reminder.get("recipients", [])
 
@@ -154,7 +160,7 @@ class DailyReminderJob:
 async def main():
     """Main entry point for the daily reminder job."""
     hub_db_uri = os.getenv("HUB_MONGODB_URI", os.getenv("MONGODB_URI", "mongodb://localhost:27017"))
-    hub_db_name = os.getenv("HUB_MONGODB_DB_NAME", "deburn_hub")
+    hub_db_name = os.getenv("HUB_MONGODB_DATABASE", "deburn-hub")
 
     job = DailyReminderJob(
         hub_db_uri=hub_db_uri,
