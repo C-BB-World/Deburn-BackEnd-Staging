@@ -1,11 +1,13 @@
 """
 Daily reminder email job.
 
-Sends a daily email to eligible users reminding them to do their
-daily check-in and featuring today's micro-course from their learning queue.
+Reads due reminders from the deburn_hub.reminders collection and sends
+personalised emails via Resend batch. Content is stored in the reminder
+document itself (no locale files needed).
 
-Only users with marketing consent receive emails (GDPR compliant).
-Supports EN/SV based on user's preferred language.
+Reminder types:
+  - one_time: status becomes "sent" after sending
+  - recurring: nextRunAt bumps by intervalDays, stays "active"
 
 Usage:
     Run via Render Cron Jobs:
@@ -19,14 +21,12 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app_v2.services.email.email_service import EmailService
-from app_v2.services.learning.learning_queue_service import LearningQueueService
-from app_v2.pipelines.learning import get_todays_focus_pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,115 +37,99 @@ logger = logging.getLogger(__name__)
 
 class DailyReminderJob:
     """
-    Sends daily reminder emails to eligible users.
+    Sends reminder emails driven by documents in deburn_hub.reminders.
 
-    Eligible users:
-    - status: "active"
-    - consents.marketing.accepted: true
-
-    Each email includes:
-    - A check-in reminder
-    - Today's micro-course title and duration (from the user's learning queue)
+    Queries reminders where status == "active" and nextRunAt <= now,
+    builds personalised emails from the embedded content, and sends
+    them via Resend batch.
     """
 
     def __init__(
         self,
-        app_db_uri: str,
         hub_db_uri: str,
-        app_db_name: str = "deburn",
         hub_db_name: str = "deburn_hub",
     ):
-        self._app_client = AsyncIOMotorClient(app_db_uri)
         self._hub_client = AsyncIOMotorClient(hub_db_uri)
-
-        self._app_db = self._app_client[app_db_name]
         self._hub_db = self._hub_client[hub_db_name]
-
-        self._users = self._app_db["users"]
-
+        self._reminders = self._hub_db["reminders"]
         self._email_service = EmailService()
-        self._queue_service = LearningQueueService(db=self._app_db)
 
     async def run(self) -> Dict[str, Any]:
         """
-        Execute the daily reminder job.
+        Execute the reminder job.
 
         Returns:
-            Dict with job results including counts and any errors
+            Dict with job results including counts and any errors.
         """
         logger.info("Starting daily reminder job")
         start_time = datetime.now(timezone.utc)
+        now = start_time
 
         results = {
             "startTime": start_time.isoformat(),
-            "eligibleUsers": 0,
+            "remindersProcessed": 0,
             "emailsSent": 0,
             "errors": [],
         }
 
         try:
-            # Query eligible users
-            cursor = self._users.find(
-                {
-                    "status": "active",
-                    "consents.marketing.accepted": True,
-                },
-                {
-                    "_id": 1,
-                    "email": 1,
-                    "profile.firstName": 1,
-                    "profile.preferredLanguage": 1,
-                }
-            )
-            users = await cursor.to_list(length=10000)
-            results["eligibleUsers"] = len(users)
-            logger.info(f"Found {len(users)} eligible users")
+            cursor = self._reminders.find({
+                "status": "active",
+                "nextRunAt": {"$lte": now},
+            })
+            reminders = await cursor.to_list(length=1000)
+            logger.info(f"Found {len(reminders)} due reminders")
 
-            # Build recipients list with today's focus info
-            recipients = []
-            for user in users:
-                user_id = str(user["_id"])
-                email = user.get("email")
-                if not email:
-                    continue
-
-                name = (user.get("profile") or {}).get("firstName") or None
-                language = (user.get("profile") or {}).get("preferredLanguage", "en") or "en"
-
-                # Get today's focus module
-                module_title = None
-                length_minutes = None
+            for reminder in reminders:
+                reminder_id = reminder["_id"]
+                reminder_name = reminder.get("name", str(reminder_id))
                 try:
-                    focus = await get_todays_focus_pipeline(
-                        self._queue_service,
-                        self._hub_db,
-                        user_id,
+                    content = reminder.get("content", {})
+                    recipients = reminder.get("recipients", [])
+
+                    if not recipients:
+                        logger.warning(f"Reminder '{reminder_name}' has no recipients, skipping")
+                        continue
+
+                    batch_result = await self._email_service.send_reminder_emails_batch(
+                        content=content,
+                        recipients=recipients,
                     )
-                    if focus and focus.get("module"):
-                        module = focus["module"]
-                        # Pick localized title
-                        if language == "sv":
-                            module_title = module.get("titleSv") or module.get("titleEn")
-                        else:
-                            module_title = module.get("titleEn") or module.get("titleSv")
-                        length_minutes = module.get("lengthMinutes")
+
+                    sent_count = batch_result.get("total_emails", 0)
+                    results["emailsSent"] += sent_count
+                    results["remindersProcessed"] += 1
+
+                    # Update reminder document
+                    update: Dict[str, Any] = {
+                        "$set": {
+                            "lastSentAt": now,
+                            "updatedAt": now,
+                        },
+                        "$inc": {"sendCount": 1},
+                    }
+
+                    if reminder.get("type") == "one_time":
+                        update["$set"]["status"] = "sent"
+                    elif reminder.get("type") == "recurring":
+                        interval_days = reminder.get("intervalDays", 1)
+                        next_run = now + timedelta(days=interval_days)
+                        update["$set"]["nextRunAt"] = next_run
+
+                    await self._reminders.update_one(
+                        {"_id": reminder_id},
+                        update,
+                    )
+
+                    logger.info(
+                        f"Reminder '{reminder_name}' processed: "
+                        f"{sent_count} emails sent"
+                    )
+
                 except Exception as e:
-                    logger.warning(f"Failed to get today's focus for user {user_id}: {e}")
-
-                recipients.append({
-                    "email": email,
-                    "name": name,
-                    "language": language,
-                    "module_title": module_title,
-                    "length_minutes": length_minutes,
-                })
-
-            # Send batch emails
-            if recipients:
-                batch_result = await self._email_service.send_daily_reminder_emails_batch(recipients)
-                results["emailsSent"] = batch_result.get("total_emails", 0)
-                if not batch_result.get("success"):
-                    results["errors"].append(f"Batch send reported failures")
+                    error_msg = f"Failed to process reminder '{reminder_name}': {e}"
+                    logger.error(error_msg)
+                    results["errors"].append(error_msg)
 
         except Exception as e:
             error_msg = f"Job failed: {str(e)}"
@@ -159,7 +143,7 @@ class DailyReminderJob:
 
         logger.info(
             f"Daily reminder job completed. "
-            f"Eligible: {results['eligibleUsers']}, "
+            f"Reminders: {results['remindersProcessed']}, "
             f"Sent: {results['emailsSent']}, "
             f"Errors: {len(results['errors'])}"
         )
@@ -168,21 +152,16 @@ class DailyReminderJob:
 
     async def close(self):
         """Close database connections."""
-        self._app_client.close()
         self._hub_client.close()
 
 
 async def main():
     """Main entry point for the daily reminder job."""
-    app_db_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-    hub_db_uri = os.getenv("HUB_MONGODB_URI", app_db_uri)
-    app_db_name = os.getenv("MONGODB_DB_NAME", "deburn")
+    hub_db_uri = os.getenv("HUB_MONGODB_URI", os.getenv("MONGODB_URI", "mongodb://localhost:27017"))
     hub_db_name = os.getenv("HUB_MONGODB_DB_NAME", "deburn_hub")
 
     job = DailyReminderJob(
-        app_db_uri=app_db_uri,
         hub_db_uri=hub_db_uri,
-        app_db_name=app_db_name,
         hub_db_name=hub_db_name,
     )
 
@@ -193,7 +172,7 @@ async def main():
         print(f"Start Time: {results['startTime']}")
         print(f"End Time: {results['endTime']}")
         print(f"Duration: {results['durationSeconds']:.2f} seconds")
-        print(f"Eligible Users: {results['eligibleUsers']}")
+        print(f"Reminders Processed: {results['remindersProcessed']}")
         print(f"Emails Sent: {results['emailsSent']}")
 
         if results["errors"]:

@@ -1311,6 +1311,178 @@ Best regards,
             "total_emails": len(emails),
         }
 
+    async def send_reminder_emails_batch(
+        self,
+        content: dict,
+        recipients: list,
+    ) -> dict:
+        """
+        Send reminder emails from a reminder document's content + recipients.
+
+        Args:
+            content: Dict with keys: subject, header, body, buttonText (opt),
+                     buttonUrl (opt), closing, signOff. {{name}} is replaced
+                     per recipient.
+            recipients: List of dicts with keys: email, name (opt), language (opt).
+
+        Returns:
+            dict with success status and counts
+        """
+        if not recipients:
+            return {"success": True, "total_emails": 0, "batches": 0}
+
+        if self._mode == "console":
+            for r in recipients:
+                name = r.get("name") or "there"
+                personalised = self._personalise_content(content, name)
+                html_content = self._render_reminder_html(personalised, name)
+                text_content = self._render_reminder_text(personalised, name)
+                self._send_console(
+                    to=r["email"],
+                    subject=personalised["subject"],
+                    html=html_content,
+                    text=text_content,
+                )
+            return {"success": True, "mode": "console", "total_emails": len(recipients)}
+
+        emails = []
+        for r in recipients:
+            name = r.get("name") or "there"
+            personalised = self._personalise_content(content, name)
+            html_content = self._render_reminder_html(personalised, name)
+            text_content = self._render_reminder_text(personalised, name)
+
+            emails.append({
+                "to": r["email"],
+                "subject": personalised["subject"],
+                "html": html_content,
+                "text": text_content,
+            })
+
+        # Send in chunks of EMAIL_MAX_BATCH_SIZE
+        results = []
+        for i in range(0, len(emails), EMAIL_MAX_BATCH_SIZE):
+            chunk = emails[i:i + EMAIL_MAX_BATCH_SIZE]
+            result = await self._send_resend_batch(chunk)
+            results.append(result)
+
+        failed = [r for r in results if not r.get("success")]
+        if failed:
+            logger.warning(f"Some reminder batch emails failed: {len(failed)}/{len(results)} batches")
+
+        return {
+            "success": len(failed) == 0,
+            "batches": len(results),
+            "total_emails": len(emails),
+        }
+
+    @staticmethod
+    def _personalise_content(content: dict, name: str) -> dict:
+        """Replace {{name}} in all string content fields."""
+        result = {}
+        for key, value in content.items():
+            if isinstance(value, str):
+                result[key] = value.replace("{{name}}", name)
+            else:
+                result[key] = value
+        return result
+
+    def _render_reminder_html(self, content: dict, name: str) -> str:
+        """Render branded HTML email from reminder content fields."""
+        header = content.get("header", "")
+        body = content.get("body", "")
+        closing = content.get("closing", "")
+        sign_off = content.get("signOff", "Best regards,")
+        button_text = content.get("buttonText")
+        button_url = content.get("buttonUrl")
+
+        # Button section (only if both buttonText and buttonUrl present)
+        button_html = ""
+        if button_text and button_url:
+            button_html = f"""
+                            <!-- Button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 24px auto;">
+                                <tr>
+                                    <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; border-radius: 8px;">
+                                        <a href="{button_url}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">{button_text}</a>
+                                    </td>
+                                </tr>
+                            </table>"""
+
+        return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333333;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" bgcolor="#2D4A47" style="background-color: #2D4A47; padding: 40px 20px;">
+                            <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600;">{header}</h1>
+                        </td>
+                    </tr>
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 16px 0; font-size: 16px; color: #333333;">Hi {name},</p>
+                            <p style="margin: 0 0 24px 0; font-size: 16px; color: #333333;">{body}</p>
+{button_html}
+                            <p style="margin: 24px 0 0 0; font-size: 16px; color: #333333;">{closing}</p>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 30px; border-top: 1px solid #eeeeee;">
+                            <p style="margin: 0; font-size: 14px; color: #666666; text-align: center;">{sign_off}<br>{self._team_name}</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>"""
+
+    def _render_reminder_text(self, content: dict, name: str) -> str:
+        """Render plain text version from reminder content fields."""
+        header = content.get("header", "")
+        body = content.get("body", "")
+        closing = content.get("closing", "")
+        sign_off = content.get("signOff", "Best regards,")
+        button_text = content.get("buttonText")
+        button_url = content.get("buttonUrl")
+
+        lines = [
+            header,
+            "",
+            f"Hi {name},",
+            "",
+            body,
+        ]
+
+        if button_text and button_url:
+            lines += ["", f"{button_text}: {button_url}"]
+
+        lines += [
+            "",
+            closing,
+            "",
+            sign_off,
+            self._team_name,
+        ]
+
+        return "\n".join(lines)
+
     async def _send(
         self,
         to: str,
