@@ -78,12 +78,6 @@ class DailyReminderJob:
                 reminder_id = reminder["_id"]
                 reminder_name = reminder.get("name", str(reminder_id))
                 try:
-                    # Skip if already sent today (safety net against double-sends)
-                    last_sent = reminder.get("lastSentAt")
-                    if last_sent and last_sent.date() == now.date():
-                        logger.info(f"Reminder '{reminder_name}' already sent today, skipping")
-                        continue
-
                     content = reminder.get("content", {})
                     recipients = reminder.get("recipients", [])
 
