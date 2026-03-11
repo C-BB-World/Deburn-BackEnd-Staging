@@ -1,13 +1,9 @@
 """
 Daily reminder email job.
 
-Reads due reminders from the deburn_hub.reminders collection and sends
+Reads published reminders from the deburn_hub.reminders collection and sends
 personalised emails via Resend batch. Content is stored in the reminder
-document itself (no locale files needed).
-
-Reminder types:
-  - one_time: status becomes "sent" after sending
-  - recurring: nextRunAt bumps by intervalDays, stays "active"
+document keyed by language (en/sv).
 
 Usage:
     Run via Render Cron Jobs:
@@ -21,7 +17,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -39,9 +35,8 @@ class DailyReminderJob:
     """
     Sends reminder emails driven by documents in deburn_hub.reminders.
 
-    Queries reminders where status == "active" and nextRunAt <= now,
-    builds personalised emails from the embedded content, and sends
-    them via Resend batch.
+    Queries reminders where published == true, resolves per-recipient
+    language content, and sends via Resend batch.
     """
 
     def __init__(
@@ -74,11 +69,10 @@ class DailyReminderJob:
 
         try:
             cursor = self._reminders.find({
-                "status": "active",
-                "nextRunAt": {"$lte": now},
+                "published": True,
             })
             reminders = await cursor.to_list(length=1000)
-            logger.info(f"Found {len(reminders)} due reminders")
+            logger.info(f"Found {len(reminders)} published reminders")
 
             for reminder in reminders:
                 reminder_id = reminder["_id"]
@@ -91,13 +85,22 @@ class DailyReminderJob:
                         logger.warning(f"Reminder '{reminder_name}' has no recipients, skipping")
                         continue
 
-                    batch_result = await self._email_service.send_reminder_emails_batch(
-                        content=content,
-                        recipients=recipients,
-                    )
+                    # Group recipients by language so each group gets the right content
+                    by_lang: Dict[str, list] = {}
+                    for r in recipients:
+                        lang = r.get("language", "sv")
+                        by_lang.setdefault(lang, []).append(r)
 
-                    sent_count = batch_result.get("total_emails", 0)
-                    results["emailsSent"] += sent_count
+                    total_sent = 0
+                    for lang, lang_recipients in by_lang.items():
+                        lang_content = content.get(lang) or content.get("sv") or content.get("en") or {}
+                        batch_result = await self._email_service.send_reminder_emails_batch(
+                            content=lang_content,
+                            recipients=lang_recipients,
+                        )
+                        total_sent += batch_result.get("total_emails", 0)
+
+                    results["emailsSent"] += total_sent
                     results["remindersProcessed"] += 1
 
                     # Update reminder document
@@ -109,13 +112,6 @@ class DailyReminderJob:
                         "$inc": {"sendCount": 1},
                     }
 
-                    if reminder.get("type") == "one_time":
-                        update["$set"]["status"] = "sent"
-                    elif reminder.get("type") == "recurring":
-                        interval_days = reminder.get("intervalDays", 1)
-                        next_run = now + timedelta(days=interval_days)
-                        update["$set"]["nextRunAt"] = next_run
-
                     await self._reminders.update_one(
                         {"_id": reminder_id},
                         update,
@@ -123,7 +119,7 @@ class DailyReminderJob:
 
                     logger.info(
                         f"Reminder '{reminder_name}' processed: "
-                        f"{sent_count} emails sent"
+                        f"{total_sent} emails sent"
                     )
 
                 except Exception as e:
