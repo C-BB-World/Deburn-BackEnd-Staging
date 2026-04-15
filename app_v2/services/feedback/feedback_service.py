@@ -202,6 +202,18 @@ class FeedbackService:
             "userRating": user_rating
         }
 
+    async def get_featured_testimonials(self) -> List[Dict[str, Any]]:
+        """
+        Get featured testimonials for the landing page.
+
+        Returns:
+            List of feedback documents with featuredForLanding=True
+        """
+        cursor = self._feedback_collection.find(
+            {"featuredForLanding": True}
+        ).sort("createdAt", -1)
+        return await cursor.to_list(length=20)
+
     async def get_feedback_list(
         self,
         limit: int = 50,
