@@ -22,8 +22,8 @@ python-multipart>=0.0.6
 # =============================================================================
 
 # Database - Beanie ODM (includes motor)
-beanie>=1.25.0
-motor>=3.3.0
+beanie>=1.25.0,<2.0.0
+motor>=3.3.0,<3.7.0
 
 # Configuration - Pydantic Settings
 pydantic-settings>=2.1.0
