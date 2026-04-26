@@ -87,6 +87,7 @@ from app_v2.agent import (
     ActionRegistry,
     TopicDetector,
     StaticRetriever,
+    HubContentRetriever,
     LearningHandler,
     ExerciseHandler,
     get_knowledge,
@@ -443,8 +444,14 @@ def init_ai_services(
 
     # Initialize action generator
     knowledge = get_knowledge()
-    retriever = StaticRetriever(knowledge=knowledge)
     topic_detector = TopicDetector(knowledge=knowledge)
+
+    # Use real hub content when hub DB is available; fall back to static
+    if hub_db is not None:
+        hub_content_svc = HubContentService(hub_db=hub_db)
+        retriever = HubContentRetriever(content_service=hub_content_svc)
+    else:
+        retriever = StaticRetriever(knowledge=knowledge)
 
     registry = ActionRegistry()
     registry.register(LearningHandler(retriever=retriever))

@@ -2,9 +2,17 @@
 Topic extraction for coaching conversations.
 
 Extracts coaching topics from messages using keyword matching.
+Uses the Knowledge singleton as the single source of truth for keywords.
 """
 
 from typing import List
+
+from app_v2.agent.memory.knowledge import get_knowledge
+
+
+def _get_topic_keywords():
+    """Get topic keywords from the Knowledge singleton."""
+    return get_knowledge().get_topic_keywords()
 
 
 COACHING_TOPICS = [
@@ -20,30 +28,8 @@ COACHING_TOPICS = [
     'decision_making',
     'mindfulness',
     'resilience',
-    'psychological_safety',
-    'emotional_regulation',
-    'feedback',
     'other'
 ]
-
-
-TOPIC_KEYWORDS = {
-    'delegation': ['delegate', 'delegating', 'assign', 'trust', 'let go', 'hand off'],
-    'stress': ['stress', 'stressful', 'overwhelmed', 'pressure', 'anxious', 'anxiety'],
-    'team_dynamics': ['team', 'group', 'collaborate', 'dynamics', 'working together', 'teamwork'],
-    'communication': ['communicate', 'conversation', 'feedback', 'listen', 'speak', 'talk'],
-    'leadership': ['leader', 'leadership', 'lead', 'manage', 'guide', 'vision'],
-    'time_management': ['time', 'prioritize', 'schedule', 'busy', 'deadline', 'urgent'],
-    'conflict': ['conflict', 'disagreement', 'tension', 'difficult conversation', 'argue'],
-    'burnout': ['burnout', 'exhausted', 'tired', 'depleted', 'drained', 'worn out'],
-    'motivation': ['motivation', 'motivated', 'purpose', 'drive', 'engagement', 'inspire'],
-    'decision_making': ['decision', 'decide', 'choice', 'uncertain', 'options'],
-    'mindfulness': ['mindful', 'present', 'aware', 'focus', 'meditation', 'breath'],
-    'resilience': ['resilience', 'resilient', 'bounce back', 'recover', 'adapt', 'cope'],
-    'psychological_safety': ['safe', 'safety', 'speak up', 'fear', 'trust', 'vulnerable'],
-    'emotional_regulation': ['emotion', 'feeling', 'regulate', 'calm', 'react', 'anger'],
-    'feedback': ['feedback', 'critique', 'review', 'performance', 'evaluation'],
-}
 
 
 def extract_topics(message: str) -> List[str]:
@@ -61,7 +47,7 @@ def extract_topics(message: str) -> List[str]:
     message_lower = message.lower()
     found_topics = []
 
-    for topic, keywords in TOPIC_KEYWORDS.items():
+    for topic, keywords in _get_topic_keywords().items():
         for keyword in keywords:
             if keyword in message_lower:
                 found_topics.append(topic)
