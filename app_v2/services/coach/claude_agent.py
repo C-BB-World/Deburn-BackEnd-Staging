@@ -11,34 +11,9 @@ from typing import Optional, List, Dict, Any, Iterator, AsyncIterator
 import anthropic
 
 from app_v2.services.coach.agent import Agent, CoachingContext, CheckinInsightContext, CheckinInsight
+from app_v2.agent.memory.knowledge import get_knowledge
 
 logger = logging.getLogger(__name__)
-
-
-COACHING_TOPICS = [
-    'delegation', 'stress', 'team_dynamics', 'communication',
-    'leadership', 'time_management', 'conflict', 'burnout',
-    'motivation', 'decision_making', 'mindfulness', 'resilience',
-    'psychological_safety', 'emotional_regulation', 'feedback', 'other'
-]
-
-TOPIC_KEYWORDS = {
-    'delegation': ['delegate', 'delegating', 'assign', 'trust', 'let go'],
-    'stress': ['stress', 'stressful', 'overwhelmed', 'pressure', 'anxious'],
-    'team_dynamics': ['team', 'group', 'collaborate', 'dynamics', 'working together'],
-    'communication': ['communicate', 'conversation', 'feedback', 'listen', 'speak'],
-    'leadership': ['leader', 'leadership', 'lead', 'manage', 'guide'],
-    'time_management': ['time', 'prioritize', 'schedule', 'busy', 'deadline'],
-    'conflict': ['conflict', 'disagreement', 'tension', 'difficult conversation'],
-    'burnout': ['burnout', 'exhausted', 'tired', 'depleted', 'drained'],
-    'motivation': ['motivation', 'motivated', 'purpose', 'drive', 'engagement'],
-    'decision_making': ['decision', 'decide', 'choice', 'uncertain'],
-    'mindfulness': ['mindful', 'present', 'aware', 'focus', 'meditation'],
-    'resilience': ['resilience', 'resilient', 'bounce back', 'recover', 'adapt'],
-    'psychological_safety': ['safe', 'safety', 'speak up', 'fear', 'trust'],
-    'emotional_regulation': ['emotion', 'feeling', 'regulate', 'calm', 'react'],
-    'feedback': ['feedback', 'critique', 'review', 'performance'],
-}
 
 
 class ClaudeAgent(Agent):
@@ -303,7 +278,7 @@ Keep it brief (1-2 sentences) and actionable."""
         message_lower = message.lower()
         found_topics = []
 
-        for topic, keywords in TOPIC_KEYWORDS.items():
+        for topic, keywords in get_knowledge().get_topic_keywords().items():
             for keyword in keywords:
                 if keyword in message_lower:
                     found_topics.append(topic)

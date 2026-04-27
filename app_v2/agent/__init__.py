@@ -28,7 +28,7 @@ from app_v2.agent.actions import (
     ActionGenerator,
     TopicDetector,
 )
-from app_v2.agent.actions.retrieval import ActionRetriever, StaticRetriever
+from app_v2.agent.actions.retrieval import ActionRetriever, StaticRetriever, HubContentRetriever
 from app_v2.agent.actions.types import LearningHandler, ExerciseHandler
 
 __all__ = [
@@ -57,6 +57,7 @@ __all__ = [
     "TopicDetector",
     "ActionRetriever",
     "StaticRetriever",
+    "HubContentRetriever",
     "LearningHandler",
     "ExerciseHandler",
 ]

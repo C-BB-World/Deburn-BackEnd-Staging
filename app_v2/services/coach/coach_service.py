@@ -164,7 +164,7 @@ class CoachService:
             full_response += chunk
             yield CoachResponseChunk(type="text", content=chunk)
 
-        topics = self._agent.extract_topics(message + " " + full_response)
+        topics = self._agent.extract_topics(message)
 
         commitment_data = self._commitment_extractor.extract(full_response)
         commitment_info = None

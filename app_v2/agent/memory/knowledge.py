@@ -14,52 +14,110 @@ class Knowledge:
     Contains topic keywords and fallback actions.
     """
 
-    # 15 coaching topics with detection keywords
+    # 12 coaching topics with detection keywords
+    # Stem-friendly prefixes (e.g. "delegat") catch conjugations via substring match.
     topic_keywords: Dict[str, List[str]] = {
         "delegation": [
-            "delegate", "delegating", "assign", "trust", "let go", "hand off"
+            "delegate", "delegating", "delegation", "assign", "let go",
+            "hand off", "empower", "micromanag", "ownership", "responsibilit",
+            "distribute work", "give task", "pass on",
+            # sv
+            "delegera", "delegering", "tilldela", "ansvar", "släppa taget",
         ],
         "stress": [
-            "stress", "stressful", "overwhelmed", "pressure", "anxious", "anxiety"
+            "stress", "stressful", "overwhelmed", "pressure", "anxious", "anxiety",
+            "swamped", "stretched thin", "can't keep up", "workload", "tense",
+            "on edge", "under pressure", "nervous", "worry",
+            # from emotional_regulation (dropped topic)
+            "emotion", "feeling", "react", "anger", "angry", "frustrat",
+            "irritat", "snapped", "lost my temper",
+            # sv
+            "stressad", "pressad", "orolig", "ångest", "spänd", "överväldigad",
+            "känsla", "ilska", "arg", "reagera",
         ],
         "team_dynamics": [
-            "team", "group", "collaborate", "dynamics", "working together", "teamwork"
+            "team", "group", "collaborate", "dynamics", "working together", "teamwork",
+            "cowork", "colleague", "morale", "cohesion", "silos",
+            "team spirit", "cooperation", "interpersonal",
+            # from psychological_safety (dropped topic)
+            "trust", "safe", "safety", "vulnerable", "speak up", "psychological",
+            "inclusion", "belong",
+            # sv
+            "lag", "samarbete", "kollega", "gruppdynamik", "laganda", "medarbetare",
+            "trygg", "trygghet", "tillit", "inkludering",
         ],
         "communication": [
-            "communicate", "conversation", "feedback", "listen", "speak", "talk"
+            "communicate", "conversation", "listen", "speak", "talk",
+            "misunderstand", "unclear", "message", "one-on-one", "meeting",
+            "dialogue", "articulate", "express",
+            # from feedback (dropped topic)
+            "feedback", "critique", "criticism", "appraisal", "recognition",
+            "difficult conversation",
+            # sv
+            "kommunikation", "samtala", "lyssna", "prata", "budskap", "möte",
+            "återkoppling", "kritik",
         ],
         "leadership": [
-            "leader", "leadership", "lead", "manage", "guide", "vision"
+            "leader", "leadership", "lead", "manage", "guide", "vision",
+            "strateg", "influence", "accountab", "responsib",
+            "role model", "direction", "executive",
+            # sv
+            "ledare", "ledarskap", "leda", "styra", "ansvarig", "strategi",
         ],
         "time_management": [
-            "time", "prioritize", "schedule", "busy", "deadline", "urgent"
+            "time", "prioritize", "schedule", "busy", "deadline", "urgent",
+            "priorit", "productiv", "efficien", "procrastinat", "overcommit",
+            "too much on my plate", "calendar", "workload", "backlog",
+            # sv
+            "tid", "prioritera", "schema", "upptagen", "deadline", "brådskande",
+            "produktiv", "prokrastiner",
         ],
         "conflict": [
-            "conflict", "disagreement", "tension", "difficult conversation", "argue"
+            "conflict", "disagreement", "tension", "difficult conversation", "argue",
+            "frustrat", "hostile", "passive aggressive", "clash", "confrontat",
+            "dispute", "friction",
+            # sv
+            "konflikt", "oenighet", "spänning", "bråk", "tvist", "konfrontation",
         ],
         "burnout": [
-            "burnout", "exhausted", "tired", "depleted", "drained", "worn out"
+            "burnout", "exhausted", "tired", "depleted", "drained", "worn out",
+            "empty", "numb", "going through the motions", "nothing left",
+            "running on fumes", "fatigue", "burnt out",
+            # sv
+            "utbränd", "utmattad", "trött", "slut", "tömd", "orkeslös",
         ],
         "motivation": [
-            "motivation", "motivated", "purpose", "drive", "engagement", "inspire"
+            "motivation", "motivated", "purpose", "drive", "engagement", "inspire",
+            "meaningless", "uninspired", "apathetic", "passion", "fulfill",
+            "lack of energy", "unmotivated", "disengaged",
+            # sv
+            "motivation", "engagemang", "drivkraft", "inspirera", "meningslös",
+            "omotiverad",
         ],
         "decision_making": [
-            "decision", "decide", "choice", "uncertain", "options"
+            "decision", "decide", "choice", "uncertain", "options",
+            "stuck", "paralyz", "trade-off", "weighing", "dilemma",
+            "indecisive", "crossroads",
+            # sv
+            "beslut", "bestämma", "val", "osäker", "alternativ", "vägval",
         ],
         "mindfulness": [
-            "mindful", "present", "aware", "focus", "meditation", "breath"
+            "mindful", "present", "aware", "focus", "meditation", "breath",
+            "grounding", "centering", "overwhelm", "slow down", "pause",
+            "attention", "calm",
+            # from emotional_regulation (dropped topic)
+            "regulate", "self-regulat", "composure",
+            # sv
+            "medveten", "närvaro", "fokus", "meditation", "andning", "lugn",
+            "reglera",
         ],
         "resilience": [
-            "resilience", "resilient", "bounce back", "recover", "adapt", "cope"
-        ],
-        "psychological_safety": [
-            "safe", "safety", "speak up", "fear", "trust", "vulnerable"
-        ],
-        "emotional_regulation": [
-            "emotion", "feeling", "regulate", "calm", "react", "anger"
-        ],
-        "feedback": [
-            "feedback", "critique", "review", "performance", "evaluation"
+            "resilience", "resilient", "bounce back", "recover", "adapt", "cope",
+            "setback", "failure", "struggle", "persever", "tough time",
+            "adversity", "overcome",
+            # sv
+            "motståndskraft", "återhämta", "anpassa", "hantera", "motgång",
+            "klara av",
         ],
     }
 
@@ -284,32 +342,6 @@ class Knowledge:
                         "duration": "7 min",
                         "contentType": "audio_article",
                         "category": "communication"
-                    }
-                },
-            ],
-        },
-        "emotional_regulation": {
-            "en": [
-                {
-                    "type": "exercise",
-                    "id": "grounding-exercise",
-                    "label": "Try a Grounding Exercise",
-                    "metadata": {
-                        "duration": "4 min",
-                        "contentType": "audio_exercise",
-                        "category": "emotional"
-                    }
-                },
-            ],
-            "sv": [
-                {
-                    "type": "exercise",
-                    "id": "grounding-exercise",
-                    "label": "Prova en jordningsövning",
-                    "metadata": {
-                        "duration": "4 min",
-                        "contentType": "audio_exercise",
-                        "category": "emotional"
                     }
                 },
             ],
