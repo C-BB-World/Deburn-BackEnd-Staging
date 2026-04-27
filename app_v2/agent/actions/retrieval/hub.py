@@ -37,15 +37,12 @@ class HubContentRetriever(ActionRetriever):
         limit: int = 2
     ) -> List[Action]:
         if not topics:
-            print("[DEBUG] HubContentRetriever: no topics, returning empty")
             return []
 
         try:
             items = await self._content_service.get_for_coach(topics)
-            print(f"[DEBUG] HubContentRetriever: got {len(items)} items from hub for topics={topics}")
         except Exception:
             logger.exception("Failed to retrieve hub content for topics %s", topics)
-            print(f"[DEBUG] HubContentRetriever: EXCEPTION for topics={topics}")
             return []
 
         actions: List[Action] = []

@@ -78,9 +78,13 @@ class ActionGenerator:
 
         # Generate actions from each handler
         actions: List[Action] = []
+        seen_ids: set[str] = set()
         for handler in handlers:
             handler_actions = await handler.generate(topics, language, context)
-            actions.extend(handler_actions)
+            for action in handler_actions:
+                if action.id not in seen_ids:
+                    seen_ids.add(action.id)
+                    actions.append(action)
 
         return actions
 
@@ -119,8 +123,12 @@ class ActionGenerator:
             ]
 
         actions: List[Action] = []
+        seen_ids: set[str] = set()
         for handler in handlers:
             handler_actions = await handler.generate(topics, language, context)
-            actions.extend(handler_actions)
+            for action in handler_actions:
+                if action.id not in seen_ids:
+                    seen_ids.add(action.id)
+                    actions.append(action)
 
         return actions

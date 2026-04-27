@@ -164,8 +164,7 @@ class CoachService:
             full_response += chunk
             yield CoachResponseChunk(type="text", content=chunk)
 
-        topics = self._agent.extract_topics(message + " " + full_response)
-        print(f"[DEBUG] Detected topics: {topics}")
+        topics = self._agent.extract_topics(message)
 
         commitment_data = self._commitment_extractor.extract(full_response)
         commitment_info = None
@@ -191,20 +190,16 @@ class CoachService:
 
         # Generate actions based on detected topics
         if self._action_generator:
-            print(f"[DEBUG] Generating actions for topics={topics}, language={language}")
             actions = await self._action_generator.generate_for_topics(
                 topics=topics,
                 language=language,
                 context={"user_id": user_id}
             )
-            print(f"[DEBUG] Actions returned: {len(actions)} — {[a.id for a in actions]}")
             if actions:
                 yield CoachResponseChunk(
                     type="actions",
                     content=[a.model_dump() for a in actions]
                 )
-        else:
-            print("[DEBUG] No action_generator available")
 
         quick_replies = self._quick_reply_generator.generate(
             full_response, topics, language

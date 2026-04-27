@@ -18,7 +18,7 @@ class Knowledge:
     # Stem-friendly prefixes (e.g. "delegat") catch conjugations via substring match.
     topic_keywords: Dict[str, List[str]] = {
         "delegation": [
-            "delegate", "delegating", "delegation", "assign", "trust", "let go",
+            "delegate", "delegating", "delegation", "assign", "let go",
             "hand off", "empower", "micromanag", "ownership", "responsibilit",
             "distribute work", "give task", "pass on",
             # sv
@@ -28,22 +28,34 @@ class Knowledge:
             "stress", "stressful", "overwhelmed", "pressure", "anxious", "anxiety",
             "swamped", "stretched thin", "can't keep up", "workload", "tense",
             "on edge", "under pressure", "nervous", "worry",
+            # from emotional_regulation (dropped topic)
+            "emotion", "feeling", "react", "anger", "angry", "frustrat",
+            "irritat", "snapped", "lost my temper",
             # sv
             "stressad", "pressad", "orolig", "ångest", "spänd", "överväldigad",
+            "känsla", "ilska", "arg", "reagera",
         ],
         "team_dynamics": [
             "team", "group", "collaborate", "dynamics", "working together", "teamwork",
             "cowork", "colleague", "morale", "cohesion", "silos",
             "team spirit", "cooperation", "interpersonal",
+            # from psychological_safety (dropped topic)
+            "trust", "safe", "safety", "vulnerable", "speak up", "psychological",
+            "inclusion", "belong",
             # sv
             "lag", "samarbete", "kollega", "gruppdynamik", "laganda", "medarbetare",
+            "trygg", "trygghet", "tillit", "inkludering",
         ],
         "communication": [
             "communicate", "conversation", "listen", "speak", "talk",
             "misunderstand", "unclear", "message", "one-on-one", "meeting",
             "dialogue", "articulate", "express",
+            # from feedback (dropped topic)
+            "feedback", "critique", "criticism", "appraisal", "recognition",
+            "difficult conversation",
             # sv
             "kommunikation", "samtala", "lyssna", "prata", "budskap", "möte",
+            "återkoppling", "kritik",
         ],
         "leadership": [
             "leader", "leadership", "lead", "manage", "guide", "vision",
@@ -93,8 +105,11 @@ class Knowledge:
             "mindful", "present", "aware", "focus", "meditation", "breath",
             "grounding", "centering", "overwhelm", "slow down", "pause",
             "attention", "calm",
+            # from emotional_regulation (dropped topic)
+            "regulate", "self-regulat", "composure",
             # sv
             "medveten", "närvaro", "fokus", "meditation", "andning", "lugn",
+            "reglera",
         ],
         "resilience": [
             "resilience", "resilient", "bounce back", "recover", "adapt", "cope",
