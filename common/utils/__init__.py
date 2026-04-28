@@ -9,6 +9,8 @@ from common.utils.exceptions import (
     ForbiddenException,
     NotFoundException,
     ValidationException,
+    ServerException,
+    InternalServerException,
 )
 from common.utils.password import validate_password
 
@@ -20,5 +22,7 @@ __all__ = [
     "ForbiddenException",
     "NotFoundException",
     "ValidationException",
+    "ServerException",
+    "InternalServerException",
     "validate_password",
 ]
