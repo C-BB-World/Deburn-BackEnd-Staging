@@ -48,6 +48,9 @@ from app_v2.services.notifications import NotificationService
 # Feedback services
 from app_v2.services.feedback import FeedbackService
 
+# Reflection services
+from app_v2.services.reflection import ReflectionService
+
 # Learning services
 from app_v2.services.learning import LearningQueueService
 
@@ -150,6 +153,9 @@ _notification_service: Optional[NotificationService] = None
 
 # Feedback
 _feedback_service: Optional[FeedbackService] = None
+
+# Reflection
+_reflection_service: Optional[ReflectionService] = None
 
 # Learning
 _learning_queue_service: Optional[LearningQueueService] = None
@@ -316,6 +322,13 @@ def init_feedback_services(hub_db: AsyncIOMotorDatabase) -> None:
     global _feedback_service
 
     _feedback_service = FeedbackService(db=hub_db)
+
+
+def init_reflection_services(db: AsyncIOMotorDatabase) -> None:
+    """Initialize reflection services."""
+    global _reflection_service
+
+    _reflection_service = ReflectionService(db=db)
 
 
 def init_learning_queue_services(db: AsyncIOMotorDatabase) -> None:
@@ -589,6 +602,7 @@ def init_all_services(
     init_media_services(db)
     init_organization_services(db)
 
+    init_reflection_services(db)
     init_learning_queue_services(db)
 
     if hub_db is not None:
@@ -793,6 +807,17 @@ def get_feedback_service() -> FeedbackService:
     if _feedback_service is None:
         raise RuntimeError("Feedback services not initialized.")
     return _feedback_service
+
+
+# ─────────────────────────────────────────────────────────────────
+# Reflection getters
+# ─────────────────────────────────────────────────────────────────
+
+def get_reflection_service() -> ReflectionService:
+    """Get reflection service instance."""
+    if _reflection_service is None:
+        raise RuntimeError("Reflection services not initialized.")
+    return _reflection_service
 
 
 # ─────────────────────────────────────────────────────────────────

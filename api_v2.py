@@ -37,6 +37,7 @@ from app_v2.routers import (
     profile_router,
     conversations_router,
     feedback_router,
+    reflection_router,
     public_router,
 )
 
@@ -160,6 +161,7 @@ app.include_router(article_image_router, prefix=API_PREFIX, tags=["Learning"])
 app.include_router(profile_router, prefix=API_PREFIX, tags=["Profile"])
 app.include_router(conversations_router, prefix=API_PREFIX, tags=["Conversations"])
 app.include_router(feedback_router, prefix=API_PREFIX, tags=["Feedback"])
+app.include_router(reflection_router, prefix=API_PREFIX, tags=["Reflection"])
 app.include_router(public_router, prefix=API_PREFIX, tags=["Public"])
 
 
