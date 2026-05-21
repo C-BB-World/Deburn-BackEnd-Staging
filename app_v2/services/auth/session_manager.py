@@ -24,9 +24,9 @@ class SessionManager:
     Sessions are stored as embedded array in user document.
     """
 
-    # Session expiration times
-    DEFAULT_EXPIRATION_DAYS = 7
-    REMEMBER_ME_EXPIRATION_DAYS = 30
+    # Inactivity window — sessions expire this long after the last request
+    DEFAULT_INACTIVITY_HOURS = 1
+    REMEMBER_ME_INACTIVITY_HOURS = 6
 
     def __init__(
         self,
@@ -79,12 +79,12 @@ class SessionManager:
         device_info = self._device_detector.detect(user_agent)
         location_info = self._geo_service.lookup(ip_address)
 
-        expiration_days = (
-            self.REMEMBER_ME_EXPIRATION_DAYS if remember_me
-            else self.DEFAULT_EXPIRATION_DAYS
+        inactivity_delta = (
+            timedelta(hours=self.REMEMBER_ME_INACTIVITY_HOURS) if remember_me
+            else timedelta(hours=self.DEFAULT_INACTIVITY_HOURS)
         )
         now = datetime.now(timezone.utc)
-        expires_at = now + timedelta(days=expiration_days)
+        expires_at = now + inactivity_delta
 
         session = {
             "_id": ObjectId(),
@@ -94,7 +94,8 @@ class SessionManager:
             "ipAddress": ip_address,
             "createdAt": now,
             "expiresAt": expires_at,
-            "lastActiveAt": now
+            "lastActiveAt": now,
+            "inactivitySeconds": int(inactivity_delta.total_seconds()),
         }
 
         await self._users_collection.update_one(
@@ -146,14 +147,16 @@ class SessionManager:
     async def update_last_active(
         self,
         user_id: str,
-        token_hash: str
+        token_hash: str,
+        inactivity_seconds: int = 3600,
     ) -> None:
         """
-        Update the lastActiveAt timestamp for a session.
+        Update lastActiveAt and roll expiresAt forward by inactivity_seconds.
 
         Args:
             user_id: MongoDB user ID
             token_hash: Hash of the session token to update
+            inactivity_seconds: Sliding window length in seconds (default 1 hour)
         """
         now = datetime.now(timezone.utc)
 
@@ -163,7 +166,10 @@ class SessionManager:
                 "sessions.tokenHash": token_hash
             },
             {
-                "$set": {"sessions.$.lastActiveAt": now}
+                "$set": {
+                    "sessions.$.lastActiveAt": now,
+                    "sessions.$.expiresAt": now + timedelta(seconds=inactivity_seconds),
+                }
             }
         )
 

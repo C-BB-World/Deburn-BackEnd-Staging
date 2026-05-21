@@ -78,7 +78,8 @@ class AuthMiddleware:
 
         await self._session_manager.update_last_active(
             str(user["_id"]),
-            token_hash
+            token_hash,
+            session.get("inactivitySeconds", 3600),
         )
 
         request.state.user = user
@@ -118,7 +119,8 @@ class AuthMiddleware:
 
             await self._session_manager.update_last_active(
                 str(user["_id"]),
-                token_hash
+                token_hash,
+                session.get("inactivitySeconds", 3600),
             )
 
             request.state.user = user
