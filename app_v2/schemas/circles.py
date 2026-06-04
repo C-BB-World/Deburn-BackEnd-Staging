@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class AvailabilitySlot(BaseModel):
     date: str = Field(..., description="Date in YYYY-MM-DD format")
     hour: int = Field(..., ge=0, le=23)
+    minute: int = Field(0, ge=0, le=59)
 
 
 class UpdateAvailabilityRequest(BaseModel):
