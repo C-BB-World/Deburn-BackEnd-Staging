@@ -77,16 +77,19 @@ class AvailabilityService:
         for slot in slots:
             date = slot.get("date")
             hour = slot.get("hour")
+            minute = slot.get("minute", 0)
 
             if date is None or hour is None:
                 continue
             if not (0 <= hour <= 23):
                 continue
+            if not (0 <= minute <= 59):
+                continue
             # Basic date format validation
             if not isinstance(date, str) or len(date) != 10:
                 continue
 
-            validated_slots.append({"date": date, "hour": hour})
+            validated_slots.append({"date": date, "hour": hour, "minute": minute})
 
         now = datetime.now(timezone.utc)
         user_oid = ObjectId(user_id)
@@ -203,7 +206,7 @@ class AvailabilityService:
         for member in member_availability:
             if str(member.get("userId")) in member_ids:
                 slots = member.get("slots", [])
-                slot_tuples = {(s.get("date"), s.get("hour")) for s in slots}
+                slot_tuples = {(s.get("date"), s.get("hour"), s.get("minute", 0)) for s in slots}
                 slot_sets.append(slot_tuples)
 
         if not slot_sets:
@@ -213,7 +216,7 @@ class AvailabilityService:
         for slot_set in slot_sets[1:]:
             common = common.intersection(slot_set)
 
-        return [{"date": date, "hour": hour} for date, hour in sorted(common)]
+        return [{"date": date, "hour": hour, "minute": minute} for date, hour, minute in sorted(common)]
 
     async def get_group_availability_status(
         self,
@@ -339,7 +342,7 @@ class AvailabilityService:
             slots = member.get("slots", [])
 
             for slot in slots:
-                key = (slot.get("date"), slot.get("hour"))
+                key = (slot.get("date"), slot.get("hour"), slot.get("minute", 0))
                 if key[0] is None or key[1] is None:
                     continue
                 if key not in slot_members:
@@ -348,10 +351,11 @@ class AvailabilityService:
 
         # Convert to list format
         slots_list = []
-        for (date, hour), available_members in sorted(slot_members.items()):
+        for (date, hour, minute), available_members in sorted(slot_members.items()):
             slots_list.append({
                 "date": date,
                 "hour": hour,
+                "minute": minute,
                 "availableCount": len(available_members),
                 "availableMembers": available_members
             })

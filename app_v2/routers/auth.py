@@ -165,6 +165,7 @@ async def login(
             "firstName": user.get("profile", {}).get("firstName"),
             "lastName": user.get("profile", {}).get("lastName"),
             "isAdmin": user.get("isAdmin", False),
+            "avatarUrl": user.get("profile", {}).get("avatarUrl"),
         },
         "token": token,
         "expiresAt": expires_at.isoformat()
@@ -201,6 +202,7 @@ async def get_session(
             "lastName": profile.get("lastName"),
             "preferredLanguage": profile.get("preferredLanguage", "en"),
             "isAdmin": user.get("isAdmin", False),
+            "avatarUrl": profile.get("avatarUrl"),
         }
     })
 

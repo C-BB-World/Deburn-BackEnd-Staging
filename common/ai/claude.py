@@ -22,6 +22,7 @@ Example:
 from typing import AsyncGenerator, Optional, List, Dict, Any
 
 from common.ai.base import AIProvider
+from app_v1.config import settings as _settings
 
 
 class ClaudeProvider(AIProvider):
@@ -35,7 +36,7 @@ class ClaudeProvider(AIProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-4-5-20250929",
+        model: str = _settings.CLAUDE_MODEL,
         max_retries: int = 3,
         timeout: float = 60.0,
     ):

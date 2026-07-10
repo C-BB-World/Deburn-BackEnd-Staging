@@ -60,7 +60,7 @@ class BaseAppSettings(BaseSettings):
 
     # Claude Settings (used when AI_PROVIDER = "claude")
     CLAUDE_API_KEY: Optional[str] = None
-    CLAUDE_MODEL: str = "claude-sonnet-4-5-20250929"
+    CLAUDE_MODEL: str = "claude-sonnet-4-6"
 
     # OpenAI Settings (used when AI_PROVIDER = "openai")
     OPENAI_API_KEY: Optional[str] = None

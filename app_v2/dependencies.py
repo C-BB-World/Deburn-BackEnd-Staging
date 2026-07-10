@@ -6,6 +6,8 @@ Provides dependency injection for all services.
 
 import os
 from functools import lru_cache
+
+from app_v1.config import settings
 from typing import Annotated, Optional, Dict, Any
 
 from fastapi import Depends, Request, HTTPException, status
@@ -406,7 +408,7 @@ def init_ai_services(
     global _claude_provider, _prompt_service, _memory_encryption_service, _memory_provider
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    model = os.getenv("AGENT_MODEL", "claude-sonnet-4-5-20250514")
+    model = os.getenv("AGENT_MODEL", settings.CLAUDE_MODEL)
     max_tokens = int(os.getenv("AGENT_MAX_TOKENS", "1024"))
     daily_limit = int(os.getenv("COACH_DAILY_LIMIT", "15"))
 

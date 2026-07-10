@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any, Iterator, AsyncIterator
 
 import anthropic
 
+from app_v1.config import settings as _settings
 from app_v2.services.coach.agent import Agent, CoachingContext, CheckinInsightContext, CheckinInsight
 from app_v2.agent.memory.knowledge import get_knowledge
 
@@ -83,7 +84,7 @@ TIP: [your tip here]"""
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-sonnet-4-5-20250514",
+        model: str = _settings.CLAUDE_MODEL,
         max_tokens: int = 1024
     ):
         """
