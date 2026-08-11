@@ -14,7 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
 
-REFLECTION_PROMPT = "How was your day today?"
+REFLECTION_PROMPT = "What's on your mind?"
 
 
 class ReflectionService:
@@ -27,7 +27,7 @@ class ReflectionService:
         self._collection = db["reflections"]
 
     def get_prompt(self) -> str:
-        """Return the current reflection prompt (placeholder)."""
+        """Return the current reflection prompt."""
         return REFLECTION_PROMPT
 
     async def submit_reflection(
